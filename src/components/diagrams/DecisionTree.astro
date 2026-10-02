@@ -1,0 +1,79 @@
+---
+import Figure from '../mdx/Figure.astro';
+---
+
+<Figure label="Decision flowchart: start with workload mix, then data types and scale, then openness requirements and team skills, leading to warehouse-first, lakehouse, or hybrid recommendations." caption="Figure 3 — A first-pass decision tree. It gets you to a sensible default in five questions; the scorecard later in the article refines it.">
+  <svg viewBox="0 0 960 470" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="dt-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow"></path></marker></defs>
+
+    <rect x="330" y="10" width="300" height="54" rx="12" class="box"></rect>
+    <text x="480" y="33" text-anchor="middle" class="t" style="font-size:13.5px">Q1 · Is it mostly SQL / BI on</text>
+    <text x="480" y="51" text-anchor="middle" class="t" style="font-size:13.5px">structured data, by a small team?</text>
+
+    <path d="M400 64 C400 90 200 80 200 106" class="ln" marker-end="url(#dt-arr)"></path>
+    <text x="268" y="88" class="s" style="font-size:12px">yes</text>
+    <path d="M560 64 C560 90 760 80 760 106" class="ln" marker-end="url(#dt-arr)"></path>
+    <text x="676" y="88" class="s" style="font-size:12px">no</text>
+
+    <rect x="40" y="110" width="320" height="54" rx="12" class="box"></rect>
+    <text x="200" y="133" text-anchor="middle" class="t" style="font-size:13.5px">Q2 · Must other engines read the</text>
+    <text x="200" y="151" text-anchor="middle" class="t" style="font-size:13.5px">data, or must you own storage?</text>
+
+    <rect x="600" y="110" width="320" height="54" rx="12" class="box"></rect>
+    <text x="760" y="133" text-anchor="middle" class="t" style="font-size:13.5px">Q3 · Significant ML / AI, streaming,</text>
+    <text x="760" y="151" text-anchor="middle" class="t" style="font-size:13.5px">unstructured data or 100s of TB+?</text>
+
+    <path d="M120 164 L120 220" class="ln" marker-end="url(#dt-arr)"></path>
+    <text x="128" y="196" class="s" style="font-size:12px">no</text>
+    <path d="M280 164 L280 220" class="ln" marker-end="url(#dt-arr)"></path>
+    <text x="288" y="196" class="s" style="font-size:12px">yes</text>
+
+    <rect x="20" y="224" width="200" height="74" rx="12" class="box-b"></rect>
+    <text x="120" y="252" text-anchor="middle" class="t tb" style="font-size:14px">Warehouse-first</text>
+    <text x="120" y="272" text-anchor="middle" class="s">managed, simplest path</text>
+    <text x="120" y="288" text-anchor="middle" class="s">to value</text>
+
+    <rect x="236" y="224" width="200" height="74" rx="12" class="box-b"></rect>
+    <text x="336" y="252" text-anchor="middle" class="t tb" style="font-size:14px">Warehouse + open</text>
+    <text x="336" y="272" text-anchor="middle" class="s">tables (managed Iceberg)</text>
+    <text x="336" y="288" text-anchor="middle" class="s">in your own storage</text>
+
+    <path d="M680 164 L680 220" class="ln" marker-end="url(#dt-arr)"></path>
+    <text x="688" y="196" class="s" style="font-size:12px">no</text>
+    <path d="M860 164 L860 220" class="ln" marker-end="url(#dt-arr)"></path>
+    <text x="868" y="196" class="s" style="font-size:12px">yes</text>
+
+    <rect x="540" y="224" width="240" height="74" rx="12" class="box"></rect>
+    <text x="660" y="248" text-anchor="middle" class="t" style="font-size:13.5px">Q4 · Do you have (or will you</text>
+    <text x="660" y="266" text-anchor="middle" class="t" style="font-size:13.5px">hire) data/platform engineers?</text>
+    <text x="660" y="286" text-anchor="middle" class="s">mixed BI + some data science</text>
+
+    <rect x="800" y="224" width="150" height="74" rx="12" class="box-a"></rect>
+    <text x="875" y="252" text-anchor="middle" class="t ta" style="font-size:14px">Lakehouse</text>
+    <text x="875" y="272" text-anchor="middle" class="s">open table format</text>
+    <text x="875" y="288" text-anchor="middle" class="s">+ REST catalog</text>
+
+    <path d="M600 298 C600 330 520 330 520 356" class="ln" marker-end="url(#dt-arr)"></path>
+    <text x="536" y="330" class="s" style="font-size:12px">limited</text>
+    <path d="M720 298 C720 330 800 330 800 356" class="ln" marker-end="url(#dt-arr)"></path>
+    <text x="772" y="330" class="s" style="font-size:12px">yes</text>
+
+    <rect x="400" y="360" width="240" height="90" rx="12" class="box-b"></rect>
+    <text x="520" y="386" text-anchor="middle" class="t tb" style="font-size:14px">Managed lakehouse</text>
+    <text x="520" y="406" text-anchor="middle" class="s">one platform runs the open</text>
+    <text x="520" y="422" text-anchor="middle" class="s">tables, catalog &amp; engines</text>
+    <text x="520" y="438" text-anchor="middle" class="s">for you</text>
+
+    <rect x="680" y="360" width="260" height="90" rx="12" class="box-a"></rect>
+    <text x="810" y="386" text-anchor="middle" class="t ta" style="font-size:14px">Multi-engine lakehouse</text>
+    <text x="810" y="406" text-anchor="middle" class="s">your storage + open catalog;</text>
+    <text x="810" y="422" text-anchor="middle" class="s">pick the best engine per</text>
+    <text x="810" y="438" text-anchor="middle" class="s">workload</text>
+
+    <rect x="20" y="360" width="340" height="90" rx="12" class="box"></rect>
+    <text x="36" y="384" class="h">Q5 · ALWAYS ASK</text>
+    <text x="36" y="406" class="s" style="font-size:12.5px;fill:var(--text-soft)">Who owns the storage account?</text>
+    <text x="36" y="424" class="s" style="font-size:12.5px;fill:var(--text-soft)">Which catalog is the source of truth,</text>
+    <text x="36" y="442" class="s" style="font-size:12.5px;fill:var(--text-soft)">and does it speak the Iceberg REST spec?</text>
+  </svg>
+</Figure>

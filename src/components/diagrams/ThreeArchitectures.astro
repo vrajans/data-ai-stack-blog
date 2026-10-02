@@ -1,0 +1,66 @@
+---
+import Figure from '../mdx/Figure.astro';
+// Three stacks side by side. Each layer: [label, sub, cls]
+const cols = [
+  {
+    title: 'Data warehouse', sub: 'one vendor, tightly integrated',
+    layers: [
+      ['SQL engine', 'vendor-managed compute', 'box-b'],
+      ['Catalog & governance', 'built-in, proprietary', 'box-b'],
+      ['Table & storage format', 'proprietary, optimized', 'box-b'],
+      ['Storage', 'managed by the vendor', 'box-b'],
+    ],
+    note: 'Bundled: simple & fast, but data only reachable through the vendor',
+    span: true,
+  },
+  {
+    title: 'Data lake', sub: 'cheap files, bring your own engine',
+    layers: [
+      ['Many engines', 'Spark · Hive · Presto · Python', 'box'],
+      ['Catalog', 'Hive Metastore (if any)', 'box-w'],
+      ['No table layer', 'folders of files — no ACID', 'box-w'],
+      ['Object storage', 'Parquet · JSON · CSV · images', 'box'],
+    ],
+    note: 'Open & flexible, but reliability is your problem',
+  },
+  {
+    title: 'Lakehouse', sub: 'open layers, many engines',
+    layers: [
+      ['Many engines', 'SQL · Spark · Flink · Python · AI', 'box-a'],
+      ['Catalog (REST)', 'governance + access control', 'box-a'],
+      ['Open table format', 'Iceberg · Delta · Hudi', 'box-a'],
+      ['Object storage', 'Parquet in your account', 'box-a'],
+    ],
+    note: 'Warehouse-grade reliability on open files you own',
+  },
+];
+const W = 290, G = 24, X0 = 14, LH = 56, LG = 10, Y0 = 70;
+---
+
+<Figure label="Side-by-side comparison of a data warehouse, a data lake and a lakehouse as four-layer stacks: engine, catalog, table format and storage." caption="Figure 1 — The same four layers, packaged three ways. A warehouse bundles them; a lake leaves the middle layers missing; a lakehouse makes each one open and swappable.">
+  <svg viewBox="0 0 960 400" xmlns="http://www.w3.org/2000/svg">
+    {cols.map((c, i) => {
+      const x = X0 + i * (W + G);
+      return (
+        <g>
+          <text x={x + W / 2} y="28" text-anchor="middle" class="t" style="font-size:17px">{c.title}</text>
+          <text x={x + W / 2} y="48" text-anchor="middle" class="s" style="font-size:12.5px">{c.sub}</text>
+          {c.span && <rect x={x - 6} y={Y0 - 6} width={W + 12} height={4 * LH + 3 * LG + 12} rx="14" fill="none" class="lna" style="stroke:var(--accent-2);stroke-dasharray:6 5"></rect>}
+          {c.layers.map((l, j) => {
+            const y = Y0 + j * (LH + LG);
+            return (
+              <g>
+                <rect x={x} y={y} width={W} height={LH} rx="10" class={l[2]}></rect>
+                <text x={x + W / 2} y={y + 24} text-anchor="middle" class="t" style="font-size:14px">{l[0]}</text>
+                <text x={x + W / 2} y={y + 42} text-anchor="middle" class="s" style="font-size:12px">{l[1]}</text>
+              </g>
+            );
+          })}
+          <foreignObject x={x} y="338" width={W} height="56">
+            <div style="font:600 13px/1.4 var(--font-sans);color:var(--text-soft);text-align:center">{c.note}</div>
+          </foreignObject>
+        </g>
+      );
+    })}
+  </svg>
+</Figure>

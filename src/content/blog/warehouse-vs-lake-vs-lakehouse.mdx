@@ -1,0 +1,273 @@
+---
+title: 'Warehouse vs Lake vs Lakehouse: A Decision Guide for 2026'
+description: 'Warehouse, lake or lakehouse? How each really works, why the lines blurred in 2026, and a decision tree, scorecard and scenarios to choose yours.'
+pubDate: 2026-10-02
+tags: [data-architecture, lakehouse, data-warehouse, data-lake, apache-iceberg]
+series: data-architecture
+seriesOrder: 2
+ogImage: /og/warehouse-vs-lake-vs-lakehouse.png
+---
+
+import Callout from '../../components/mdx/Callout.astro';
+import ThreeArchitectures from '../../components/diagrams/ThreeArchitectures.astro';
+import Convergence from '../../components/diagrams/Convergence.astro';
+import DecisionTree from '../../components/diagrams/DecisionTree.astro';
+
+"Should we build a warehouse, a data lake or a lakehouse?" is still one of the first questions asked in almost every data platform project. In 2026 it's also slightly the wrong question.
+
+Over the last eighteen months the major platforms converged. Snowflake, Databricks, Google BigQuery, Amazon Redshift and Microsoft Fabric can all read and write open table formats such as Apache Iceberg. The marketing labels — "AI data cloud", "data intelligence platform", "lakehouse" — now describe overlapping products. So the useful question is no longer *which label*, but a set of more precise decisions underneath it:
+
+- **Who owns the storage** — you, in your own cloud account, or the vendor?
+- **Which format** is the system of record — proprietary, or open (Iceberg, Delta)?
+- **Which catalog** is the source of truth for tables and permissions?
+- **How many engines** need to work on the same data?
+- **How much platform engineering** are you willing to own?
+
+This is Part 2 of the [Data Architecture series](/series/data-architecture). [Part 1](/blog/data-architecture-complete-guide) was the map of the whole platform; this part zooms into the storage-and-compute decision at its centre. By the end you'll have a clear mental model of each option, an honest view of the trade-offs, a decision tree, a scorecard you can use with your team, and worked scenarios.
+
+<Callout type="key" title="The short answer">
+For most new platforms in 2026 the best default is **open table formats (usually Apache Iceberg) in storage you control, governed by a catalog that speaks the Iceberg REST specification** — and then choose engines, including a managed warehouse, on top. A pure, closed warehouse is still a great choice for small, SQL-centric teams who value simplicity above everything else. A raw data lake without a table format is no longer a good primary architecture; keep it only as a landing zone or archive.
+</Callout>
+
+## The three architectures, precisely
+
+Every analytical platform has the same four layers: **storage**, a **table format** that turns files into tables, a **catalog** that names those tables and controls access, and one or more **compute engines** that run queries. The three architectures differ in how they package those layers.
+
+<ThreeArchitectures />
+
+### Data warehouse
+
+A data warehouse is a database optimized for analytical queries — large scans, joins and aggregations — over structured, modeled data. Modern cloud warehouses (Snowflake, BigQuery, Amazon Redshift, Azure Synapse and Fabric Warehouse, Databricks SQL) share a few traits:
+
+- **Columnar storage** with compression and fine-grained statistics, so queries read only the columns and blocks they need.
+- **Separation of storage and compute** — data sits in cloud object storage managed by the vendor; compute clusters scale independently and can be paused.
+- **Tight integration** — the engine, storage layout, metadata, security model, caching and workload management are designed together, which is why warehouses are fast and low-maintenance.
+- **Schema-on-write** — data is loaded into defined tables with types and constraints.
+
+The trade-off is that, in the classic model, the data lives in a **proprietary format** and is reachable only through the vendor's engine. If you want to train an ML model in Spark or query the same data from another engine, you export it — creating copies, cost and drift.
+
+### Data lake
+
+A data lake is a large store of raw files — Parquet, JSON, CSV, Avro, logs, images, documents — in cheap object storage (Amazon S3, Azure Data Lake Storage, Google Cloud Storage), queried by whatever engines you choose. Its strengths are real: any data type, very low storage cost, no vendor lock-in on storage, and freedom to use Spark, Python, Presto/Trino or anything else.
+
+Its weaknesses are just as real. A folder of files has **no transactions** (a reader can see a half-written result), **no reliable schema enforcement**, no efficient updates or deletes (a GDPR "delete this customer" request means rewriting files), and slow metadata operations on large tables. Without strong discipline, governance and documentation, lakes degrade into the infamous *data swamp*.
+
+### Lakehouse
+
+A lakehouse keeps the lake's open storage but adds the two missing layers. An **open table format** (Apache Iceberg, Delta Lake or Apache Hudi) adds ACID transactions, schema evolution, time travel and efficient row-level changes on top of Parquet files. A **catalog** adds names, governance and access control. Any number of engines — SQL warehouses, Spark, Flink, Python, AI tooling — then work on the same single copy of data.
+
+The idea was formalized in the 2021 CIDR paper *"Lakehouse: A New Generation of Open Platforms that Unify Data Warehousing and Advanced Analytics"*, and the table formats themselves came out of Uber (Hudi), Netflix (Iceberg) and Databricks (Delta). Part 3 of this series goes deep into how those formats work.
+
+### Side-by-side
+
+| Dimension | Data warehouse | Data lake | Lakehouse |
+|---|---|---|---|
+| **Storage** | Vendor-managed, proprietary format | Your object storage, raw files | Your object storage, open table format |
+| **Data types** | Structured, semi-structured (JSON/VARIANT) | Anything | Anything; tables for structured & semi-structured |
+| **Transactions (ACID)** | Yes | No | Yes (via table format) |
+| **Updates / deletes** | Easy, efficient | Rewrite files manually | Efficient (merge-on-read, deletion vectors) |
+| **Engines** | One (the vendor's) | Many, but unreliable together | Many, safely on one copy |
+| **BI performance** | Excellent out of the box | Poor without heavy tuning | Very good; depends on engine and table maintenance |
+| **ML / AI workloads** | Improving; often needs export | Natural fit for files | Natural fit — same tables for BI and ML |
+| **Operational effort** | Lowest | High | Medium (lower with managed services) |
+| **Lock-in risk** | Highest (storage + engine) | Lowest | Low on data; watch the catalog |
+| **Governance** | Strong, built-in | Weak unless you build it | Strong, centred on the catalog |
+
+## What changed: the great convergence
+
+Until recently the choice was stark: the warehouse's simplicity and speed *or* the lake's openness and flexibility. Through 2025 and 2026 that trade-off largely dissolved, because the warehouses adopted open table formats and the lakehouse platforms built warehouse-grade SQL engines.
+
+<Convergence />
+
+A few concrete milestones, as of September 2026:
+
+- **Snowflake** made Apache Iceberg v3 support generally available in May 2026, and in the same month made it GA for external engines such as Spark to *write* to Snowflake-managed Iceberg tables through its Horizon Catalog.
+- **Databricks** — historically Delta-first — made managed Iceberg tables, Iceberg v3 and its Iceberg REST Catalog API in Unity Catalog generally available in May 2026.
+- **Amazon Redshift** reads and writes Iceberg tables, and added Iceberg v3 support in August 2026.
+- **Google Cloud** offers BigQuery tables in Iceberg format and an Iceberg REST catalog through *Google Lakehouse for Apache Iceberg* (formerly BigLake), with federation to other catalogs.
+- **Microsoft Fabric** stores all tables in OneLake as Delta Parquet and uses metadata virtualization to expose them as Iceberg (and Iceberg as Delta).
+
+<Callout type="note" title="What convergence does not mean">
+"Supports Iceberg" covers a wide range — from read-only external tables to fully managed, multi-writer tables with governance. Features, performance and pricing still differ by vendor, edition and region. Treat open-format support as a capability to verify in a proof of concept, not a checkbox.
+</Callout>
+
+The consequence for architects: **the format debate is mostly settled, and lock-in has moved up a layer — to the catalog and the governance model.** If every engine must go through one vendor's catalog to find tables and get credentials, that catalog is your platform, however open the files underneath are. Part 4 of the series covers catalogs in depth.
+
+## The eight questions that actually decide it
+
+Rather than starting from product names, score your situation on these eight dimensions.
+
+### 1. Workload mix
+
+List your top use cases and their consumers. Pure dashboards and SQL reporting favour a warehouse engine. A mix of BI, data science, ML training, streaming and AI applications favours open tables that many engines can share. The more *kinds* of compute you need, the stronger the case for a lakehouse.
+
+### 2. Data types and shape
+
+Mostly relational data from operational databases and SaaS tools? Any of the three works. Large volumes of events, logs, IoT telemetry, or unstructured content — documents, images, audio for AI — push you toward open object storage, where those files live naturally anyway.
+
+### 3. Scale and growth
+
+At a few terabytes, storage cost is rarely the deciding factor and simplicity wins. At hundreds of terabytes to petabytes, the ability to keep one copy, tier old data cheaply and choose cost-efficient engines per workload becomes worth real engineering effort.
+
+### 4. Latency and concurrency
+
+Hundreds of concurrent dashboard users with sub-second expectations are a warehouse engine's home turf (and the territory of real-time OLAP stores such as ClickHouse, Druid or Pinot for user-facing analytics). A lakehouse can serve BI well too, but it depends on table maintenance — compaction, clustering, statistics — and on choosing a strong SQL engine. Part 6 covers streaming and real-time.
+
+### 5. Team skills and operating model
+
+This is the most underrated factor. A warehouse needs SQL and modelling skills. A self-assembled lakehouse also needs platform engineering: table maintenance, catalog operations, engine tuning, security integration and cost management. Managed lakehouse services reduce that burden substantially, but don't remove it. Be honest about who will run the platform at 2 a.m.
+
+### 6. Openness and lock-in tolerance
+
+Ask what happens if you need to change your primary engine in three years. With data in a proprietary format you're facing a migration project. With Iceberg tables in your own storage and a standards-based catalog, you can add or swap engines with far less disruption. Some organizations — especially regulated or multi-cloud ones — treat data ownership as a hard requirement.
+
+### 7. Governance and compliance
+
+Regulated industries need fine-grained access control (row- and column-level), masking, lineage, audit and right-to-be-forgotten deletes. Warehouses provide much of this out of the box. In a lakehouse it lives in the catalog — so governance is only as strong as your catalog *and* the guarantee that engines can't bypass it by reading files directly (credential vending helps here).
+
+### 8. Cost model
+
+Costs work very differently across options; the next section breaks them down. The key point: **in analytics platforms, compute usually dominates the bill — not storage** — so the real cost questions are about how efficiently each workload runs and how well idle compute is controlled.
+
+<DecisionTree />
+
+## Understanding the cost trade-offs
+
+"Lakehouses are cheaper" is one of the most repeated claims in data — and only sometimes true. Break cost into its parts.
+
+**Storage.** Object storage is inexpensive: for example, Amazon S3 Standard lists at about $0.023 per GB-month for the first 50 TB in US East, and BigQuery active logical storage is roughly $23.55 per TiB-month in the US multi-region, dropping by about half for data unmodified for 90 days. Storage is rarely what makes a platform expensive — but **duplicate copies** across a lake, a warehouse and marts multiply it, and every copy also brings pipeline cost and consistency risk.
+
+**Compute.** This is where the money goes, and pricing models differ:
+
+| Model | How you pay | Example | Watch out for |
+|---|---|---|---|
+| **Per data scanned** | Per TiB read by queries | BigQuery on-demand: $6.25 per TiB in the US multi-region (first 1 TiB per month free) | Unpartitioned tables and `SELECT *` on wide tables |
+| **Per compute-time** | Credits / units per second or hour that a warehouse or cluster runs | Snowflake credits, Databricks DBUs, Redshift RPU-hours, Fabric capacity units | Idle warehouses, oversized clusters, no auto-suspend |
+| **Reserved / committed capacity** | Fixed capacity for a term, at a discount | Slot or capacity commitments, reserved instances | Paying for capacity you don't use |
+| **Bring your own compute** | Your own VMs or Kubernetes running open engines | Spark, Trino, DuckDB on your infrastructure | Engineering time is a real (hidden) cost |
+
+*Prices are list prices at the time of writing and vary by region, edition and contract — always check the vendor's pricing page.*
+
+**People.** A self-managed, multi-engine lakehouse can be the cheapest option on the cloud bill and the most expensive in engineering salaries. For a small team, a managed warehouse that "just works" is often the lowest *total* cost of ownership.
+
+<Callout type="tip" title="Where the lakehouse genuinely saves money">
+Eliminating copies between lake and warehouse; using the cheapest suitable engine per workload (for example, Spark or DuckDB for heavy transformation, a warehouse engine for high-concurrency BI); tiering cold data to cheaper storage; and avoiding egress and export costs for ML. Savings come from **architecture and discipline**, not from the label.
+</Callout>
+
+## Scorecard: rate your situation
+
+Score each dimension from 1 to 5 against the statements on the right. A total under about 18 points toward a warehouse-first approach; 18–28 toward a managed lakehouse or a warehouse on open tables; above 28 toward a multi-engine lakehouse.
+
+| Dimension | 1 point | 5 points |
+|---|---|---|
+| Workload mix | Dashboards and SQL reporting only | BI + data science + ML + streaming + AI apps |
+| Data types | Relational tables from apps and SaaS | Heavy events, logs, documents, images |
+| Scale (3-year view) | A few TB | Hundreds of TB to PB |
+| Engines needed | One SQL engine | Several engines on the same data |
+| Openness requirement | Comfortable with a single vendor | Must own storage and avoid lock-in |
+| Platform engineering capacity | No dedicated data engineers | Dedicated platform team |
+| Cost sensitivity at scale | Simplicity matters more than unit cost | Unit cost at scale is a board-level topic |
+
+This is a conversation tool, not an algorithm. Its main value is forcing the team to agree on the inputs before arguing about vendors.
+
+## Five realistic scenarios
+
+### Scenario 1 — Seed-stage SaaS company, two analysts
+
+Data: Postgres, Stripe, HubSpot, product events. Needs: board metrics, product dashboards. Team: two analytics engineers, no platform engineers.
+
+**Recommendation: warehouse-first.** Managed connectors into a cloud warehouse, dbt for transformation, a BI tool on top. If the chosen warehouse can store tables as Iceberg in your own bucket at little extra effort, consider it — it keeps future options open — but don't let it slow you down.
+
+### Scenario 2 — Mid-size retailer adding demand forecasting
+
+Data: ERP, POS transactions, e-commerce clickstream, supplier files; growing to ~100 TB. Needs: BI for merchandising, ML forecasting, near-real-time inventory. Team: six data engineers, three data scientists.
+
+**Recommendation: managed lakehouse.** Iceberg or Delta tables in the company's own storage, medallion layers, one managed platform providing SQL warehouse, Spark and ML capabilities, with a catalog governing everything. Data scientists train on the same silver/gold tables analysts query — no exports.
+
+### Scenario 3 — Global enterprise with multiple clouds and existing platforms
+
+Data: hundreds of sources, several business units, a legacy on-prem warehouse, one business unit on Snowflake, another on Databricks. Needs: shared customer and finance data, strict governance, AI initiatives.
+
+**Recommendation: multi-engine open lakehouse with a standards-based catalog strategy.** Standardize on Iceberg for shared data products; make sure catalogs interoperate over the Iceberg REST spec (and federate where needed); let each business unit keep its preferred engine. The architecture work here is mostly about catalog strategy, governance and data products — the subject of Parts 4 and 7.
+
+### Scenario 4 — Regulated bank modernizing its warehouse
+
+Data: core banking, cards, CRM, risk systems. Needs: regulatory reporting, risk models, strict lineage and audit, data residency.
+
+**Recommendation: warehouse engine on open tables you control, or a managed lakehouse — chosen primarily on governance.** Data ownership and residency push toward storage in the bank's own accounts; regulatory reporting pushes toward a mature, high-concurrency SQL engine with strong built-in controls. Evaluate catalogs on row/column security, audit and whether engines can bypass them.
+
+### Scenario 5 — AI-first product company
+
+Data: user documents, chat transcripts, product telemetry, embeddings. Needs: RAG, evaluation datasets, model fine-tuning, product analytics.
+
+**Recommendation: lakehouse.** Unstructured content and AI artifacts live naturally in object storage; open tables hold metadata, events, evaluations and features; multiple engines (SQL, Spark, Python, vector search) work over the same governed data. Part 9 covers AI-ready architecture specifically.
+
+## Hybrid patterns that work
+
+Few real platforms are "pure". These are the patterns we see work in practice:
+
+1. **Warehouse on open tables.** Use a managed warehouse as the primary engine, but store key tables as Iceberg in your own storage. You keep the warehouse's simplicity and gain portability.
+2. **Lakehouse with a serving warehouse.** Bronze and silver layers in open tables processed by Spark or SQL; gold data products served to BI through a warehouse engine — reading the same tables, not copies.
+3. **Lake as landing zone.** Raw files land in object storage (cheap, replayable), then are loaded into tables. The "lake" survives, but only as bronze — not as the place people query.
+4. **Federated multi-engine.** Several engines and even several catalogs, connected through the Iceberg REST spec and catalog federation, around shared data products.
+
+<Callout type="warn" title="The pattern to avoid">
+A lake *and* a warehouse holding **independent copies** of the same data, each with its own pipelines, definitions and permissions. It was the most common architecture of the late 2010s and the main reason "single source of truth" became a joke. If you have it today, convergence is your migration path out.
+</Callout>
+
+## Migration paths
+
+**From a classic warehouse to open tables.** Don't big-bang it. Start by landing *new* data as Iceberg tables in your storage and reading them from the existing warehouse; then convert the largest or most widely shared tables; then open access to other engines through the catalog. Measure query performance and cost at each step.
+
+**From a Hadoop-era or raw-file lake to a lakehouse.** Convert high-value datasets from raw files or Hive tables to Iceberg/Delta (most formats offer in-place or snapshot migration procedures), introduce a proper catalog, then enforce that consumers read tables, not paths. Use the migration to clean up ownership and retire unused data.
+
+**From two parallel stacks to one.** Pick the system of record for each domain, make the other side read it through open tables, then decommission the duplicate pipelines one domain at a time.
+
+In every case: migrate **use cases**, not tables. Each step should deliver something a business user can see.
+
+## Myths worth retiring
+
+- **"Lakehouses are always cheaper."** Only if you remove copies and run workloads efficiently. A poorly maintained lakehouse with small files and oversized clusters can cost more than a warehouse.
+- **"Warehouses can't do ML or AI."** Modern warehouses run Python, ML functions and vector search in-platform. The question is whether that's enough for your use cases, and whether other engines need the data too.
+- **"Open format means no lock-in."** Open files with a proprietary, non-interoperable catalog and governance layer are still lock-in — just one level up.
+- **"Data lakes are dead."** Object storage is more central than ever; it's the *un-governed folder of files as primary architecture* that's dead.
+- **"You need Spark for a lakehouse."** Many teams run lakehouses with SQL engines, DuckDB and managed services, and little or no Spark.
+- **"We must decide once, forever."** With open tables and a standards-based catalog, you can start warehouse-first and evolve, which is precisely the point.
+
+## A one-page checklist
+
+Before you sign anything, make sure you can answer:
+
+1. What are our top ten use cases, their consumers, latency and data types?
+2. Who will own and operate the platform, and do they have the skills?
+3. Where will the system-of-record data live — whose account, which region?
+4. Which table format, and is it readable *and writable* by the engines we need?
+5. Which catalog is the source of truth? Does it implement the Iceberg REST spec? Can engines bypass its permissions?
+6. How do we get data out — format, cost, effort — if we change vendors?
+7. What does a realistic month cost at expected scale, including idle compute and engineering time?
+8. Which two or three use cases will we deliver first, end to end?
+
+## Key takeaways
+
+- Warehouses, lakes and lakehouses differ in **how they package storage, table format, catalog and compute** — not in some mystical capability.
+- In 2026 all major platforms read and write **open table formats**; the old warehouse-vs-lake trade-off has largely dissolved.
+- The decisions that matter now: **who owns the storage, which format, which catalog, how many engines, and who operates it**.
+- **Warehouse-first** is still right for small, SQL-centric teams; **lakehouse** is the default for mixed BI/ML/AI workloads at scale; a raw **lake** belongs only in the landing zone.
+- Cost is driven by **compute and copies**, not storage — and by engineering time.
+- Lock-in has moved to the **catalog**. Choose one that speaks open standards.
+
+## Up next
+
+**Part 3 — Open Table Formats Deep Dive: Iceberg, Delta, Hudi & DuckLake.** How snapshots, manifests and transaction logs actually work, what Iceberg v3's deletion vectors and row lineage change, and how to choose. Follow along on the [series page](/series/data-architecture) or via [RSS](/rss.xml).
+
+## References and further reading
+
+- Armbrust, Ghodsi, Xin, Zaharia — [Lakehouse: A New Generation of Open Platforms that Unify Data Warehousing and Advanced Analytics](https://www.cidrdb.org/cidr2021/papers/cidr2021_paper17.pdf), CIDR 2021.
+- Snowflake — [Support for Apache Iceberg version 3 (GA), May 7, 2026](https://docs.snowflake.com/en/release-notes/2026/other/2026-05-07-iceberg-v3-ga) and [Write support for Iceberg tables via external engines (GA), May 26, 2026](https://docs.snowflake.com/en/release-notes/2026/other/2026-05-26-tables-iceberg-query-using-external-query-engine-snowflake-horizon-writes-ga).
+- Databricks — [Advancing Apache Iceberg on Databricks: Iceberg v3 GA, Open Sharing, and Unified Governance](https://www.databricks.com/blog/unity-catalog-and-next-era-apache-icebergtm) (May 2026).
+- AWS — [Amazon Redshift now supports Apache Iceberg v3 tables](https://aws.amazon.com/about-aws/whats-new/2026/08/amazon-redshift-supports-apache-iceberg-v3/) (August 2026) and [Writing to Apache Iceberg tables](https://docs.aws.amazon.com/redshift/latest/dg/iceberg-writes.html).
+- Google Cloud — [Lakehouse for Apache Iceberg (formerly BigLake)](https://cloud.google.com/products/lakehouse) and [BigQuery pricing](https://cloud.google.com/bigquery/pricing).
+- Microsoft — [OneLake overview](https://learn.microsoft.com/en-us/fabric/onelake/onelake-overview) and [Delta Lake table format interoperability](https://learn.microsoft.com/en-us/fabric/fundamentals/delta-lake-interoperability).
+- AWS — [Amazon S3 pricing](https://aws.amazon.com/s3/pricing/).
+- Alex Merced — [The State of Apache Iceberg Catalogs in June 2026](https://dev.to/alexmercedcoder/the-state-of-apache-iceberg-catalogs-in-june-2026-265e).
+- Joe Reis & Matt Housley — *Fundamentals of Data Engineering* (O'Reilly, 2022).

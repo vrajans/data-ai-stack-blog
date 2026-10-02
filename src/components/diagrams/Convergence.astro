@@ -1,0 +1,34 @@
+---
+import Figure from '../mdx/Figure.astro';
+const rows = [
+  { p: 'Snowflake', d: 'Managed Iceberg tables; Iceberg v3 GA (May 2026); external engines write via Horizon Catalog (GA May 2026)' },
+  { p: 'Databricks', d: 'Delta-native; managed Iceberg, Iceberg v3 and Iceberg REST API in Unity Catalog GA (May 2026)' },
+  { p: 'Google BigQuery', d: 'Iceberg tables + Iceberg REST catalog via Google Lakehouse for Apache Iceberg (formerly BigLake)' },
+  { p: 'Amazon Redshift', d: 'Reads and writes Iceberg tables, including v3 (Aug 2026), via Glue Data Catalog / S3 Tables' },
+  { p: 'Microsoft Fabric', d: 'OneLake stores Delta Parquet; metadata virtualization exposes tables as Iceberg and vice versa' },
+];
+---
+
+<Figure label="Timeline-style summary showing how each major warehouse and lakehouse platform now reads and writes open table formats." caption="Figure 2 — Convergence: by mid-2026 every major platform reads and writes open table formats. Status as of September 2026; check vendor docs for your region and edition.">
+  <svg viewBox="0 0 960 330" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="cv-g" x1="0" x2="1" y1="0" y2="0">
+        <stop offset="0" stop-color="var(--accent-2)"></stop>
+        <stop offset="1" stop-color="var(--accent)"></stop>
+      </linearGradient>
+    </defs>
+    <text x="16" y="24" class="h">CLOSED &amp; BUNDLED</text>
+    <text x="944" y="24" text-anchor="end" class="h">OPEN &amp; INTEROPERABLE</text>
+    <rect x="16" y="34" width="928" height="8" rx="4" fill="url(#cv-g)"></rect>
+    {rows.map((r, i) => {
+      const y = 62 + i * 52;
+      return (
+        <g>
+          <rect x="16" y={y} width="928" height="44" rx="10" class="box"></rect>
+          <text x="32" y={y + 27} class="t" style="font-size:14px">{r.p}</text>
+          <text x="196" y={y + 27} class="s" style="font-size:12.5px;fill:var(--text-soft)">{r.d}</text>
+        </g>
+      );
+    })}
+  </svg>
+</Figure>
