@@ -1,0 +1,51 @@
+---
+import { SITE, TRACKS } from '../config';
+import Newsletter from './Newsletter.astro';
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="container">
+    <Newsletter />
+    <div class="cols">
+      <div class="about">
+        <a href="/" class="brand">{SITE.title}</a>
+        <p>{SITE.tagline}</p>
+        <div class="social">
+          {SITE.social.github && <a href={SITE.social.github} rel="me noopener" target="_blank">GitHub</a>}
+          {SITE.social.linkedin && <a href={SITE.social.linkedin} rel="me noopener" target="_blank">LinkedIn</a>}
+          {SITE.social.x && <a href={SITE.social.x} rel="me noopener" target="_blank">X</a>}
+          <a href="/rss.xml">RSS</a>
+        </div>
+      </div>
+      <div>
+        <h3>Topics</h3>
+        <ul>{TRACKS.map((t) => <li><a href={`/tags/${t.tag}`}>{t.title}</a></li>)}</ul>
+      </div>
+      <div>
+        <h3>Explore</h3>
+        <ul>
+          <li><a href="/blog">All articles</a></li>
+          <li><a href="/series">Series</a></li>
+          <li><a href="/series/data-architecture">Data Architecture series</a></li>
+          <li><a href="/about">About</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">© {year} {SITE.author}. Written by a human, researched with care. Opinions are my own.</p>
+  </div>
+</footer>
+
+<style>
+  .site-footer { margin-top: 96px; border-top: 1px solid var(--border); background: var(--bg-soft); padding: 56px 0 34px; }
+  .cols { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 40px; margin-top: 48px; }
+  .brand { font: 750 18px var(--font-display); }
+  .about p { color: var(--text-soft); font-size: 15px; max-width: 360px; }
+  h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-mute); margin: 0 0 12px; }
+  ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; font-size: 15px; }
+  ul a, .social a { color: var(--text-soft); }
+  ul a:hover, .social a:hover { color: var(--accent); }
+  .social { display: flex; gap: 16px; font-size: 14.5px; font-weight: 550; }
+  .legal { margin: 44px 0 0; font-size: 13.5px; color: var(--text-mute); }
+  @media (max-width: 760px) { .cols { grid-template-columns: 1fr 1fr; } .about { grid-column: 1 / -1; } }
+</style>

@@ -1,0 +1,38 @@
+---
+import type { Post } from '../lib/posts';
+import { formatDate, readingTime, titleCase } from '../lib/posts';
+interface Props { post: Post; variant?: 'default' | 'feature' }
+const { post, variant = 'default' } = Astro.props;
+const { title, description, pubDate, tags, series, seriesOrder } = post.data;
+const mins = readingTime(post.body);
+---
+
+<article class:list={['card', 'post-card', variant]}>
+  <a href={`/blog/${post.id}`} class="stretched" aria-label={title}></a>
+  <div class="top">
+    {series && <span class="series">Series · Part {seriesOrder ?? 1}</span>}
+    {tags[0] && <span class="tag">{titleCase(tags[0])}</span>}
+  </div>
+  <h3>{title}</h3>
+  <p>{description}</p>
+  <div class="meta">
+    <time datetime={pubDate.toISOString()}>{formatDate(pubDate)}</time>
+    <span aria-hidden="true">·</span>
+    <span>{mins} min read</span>
+  </div>
+</article>
+
+<style>
+  .post-card { position: relative; padding: 24px; display: flex; flex-direction: column; gap: 10px; }
+  .stretched { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+  .top { display: flex; gap: 8px; flex-wrap: wrap; font-size: 12.5px; font-weight: 600; }
+  .series { color: var(--accent-2); }
+  .tag { color: var(--accent); }
+  h3 { margin: 0; font-size: 20px; line-height: 1.3; }
+  p { margin: 0; color: var(--text-soft); font-size: 15.5px; line-height: 1.6; flex: 1;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .post-card:hover h3 { color: var(--accent); }
+  .feature { padding: 34px; }
+  .feature h3 { font-size: clamp(24px, 3vw, 32px); }
+  .feature p { -webkit-line-clamp: 4; font-size: 17px; }
+</style>

@@ -1,0 +1,96 @@
+---
+import { SITE } from '../config';
+const path = Astro.url.pathname;
+const nav = [
+  { href: '/blog', label: 'Articles' },
+  { href: '/series', label: 'Series' },
+  { href: '/tags', label: 'Topics' },
+  { href: '/about', label: 'About' },
+];
+const isActive = (href: string) => path === href || path.startsWith(href + '/');
+---
+
+<header class="site-header">
+  <div class="container bar">
+    <a href="/" class="brand" aria-label={`${SITE.title} home`}>
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="30" height="30"><rect width="32" height="32" rx="9" fill="currentColor"></rect><path d="M9 11h14M9 16h10M9 21h6" stroke="var(--bg)" stroke-width="2.6" stroke-linecap="round"></path><circle cx="22" cy="21" r="2.6" fill="var(--accent)"></circle></svg>
+      </span>
+      <span class="name">{SITE.title}</span>
+    </a>
+
+    <nav aria-label="Main" class="nav">
+      {nav.map((n) => <a href={n.href} class:list={[{ active: isActive(n.href) }]} aria-current={isActive(n.href) ? 'page' : undefined}>{n.label}</a>)}
+    </nav>
+
+    <div class="actions">
+      <button class="icon-btn search-trigger" type="button" aria-label="Search articles (Ctrl + K)" data-open-search>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+        <span class="kbd">Ctrl K</span>
+      </button>
+      <a class="icon-btn" href="/rss.xml" aria-label="RSS feed">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 11a9 9 0 0 1 9 9M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1.2" fill="currentColor"></circle></svg>
+      </a>
+      <button class="icon-btn" type="button" id="theme-toggle" aria-label="Toggle dark mode">
+        <svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+        <svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+      </button>
+      <button class="icon-btn menu-btn" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-nav">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+      </button>
+    </div>
+  </div>
+  <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile" hidden>
+    {nav.map((n) => <a href={n.href}>{n.label}</a>)}
+  </nav>
+</header>
+
+<style>
+  .site-header {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: saturate(160%) blur(14px); -webkit-backdrop-filter: saturate(160%) blur(14px);
+    border-bottom: 1px solid var(--border);
+  }
+  .bar { display: flex; align-items: center; gap: 24px; height: 66px; }
+  .brand { display: flex; align-items: center; gap: 10px; font: 750 17px var(--font-display); letter-spacing: -0.01em; color: var(--text); }
+  .logo { display: grid; color: var(--text); }
+  .nav { display: flex; gap: 4px; margin-left: 12px; }
+  .nav a { padding: 7px 12px; border-radius: 8px; font-size: 15px; font-weight: 520; color: var(--text-soft); }
+  .nav a:hover { color: var(--text); background: var(--bg-soft); }
+  .nav a.active { color: var(--text); background: var(--bg-soft); }
+  .actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .icon-btn {
+    display: inline-flex; align-items: center; gap: 8px; height: 38px; min-width: 38px; justify-content: center; padding: 0 10px;
+    border-radius: 10px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text-soft); cursor: pointer; font: 500 13px var(--font-sans);
+  }
+  .icon-btn:hover { color: var(--text); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+  .kbd { font: 500 11.5px var(--font-mono); color: var(--text-mute); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; }
+  :global([data-theme='dark']) .sun { display: none; }
+  :global([data-theme='light']) .moon { display: none; }
+  .menu-btn { display: none; }
+  .mobile-nav { display: grid; padding: 8px 20px 16px; border-top: 1px solid var(--border); }
+  .mobile-nav a { padding: 12px 4px; font-weight: 550; border-bottom: 1px solid var(--border); }
+  .mobile-nav[hidden] { display: none; }
+  @media (max-width: 760px) {
+    .nav, .kbd { display: none; }
+    .menu-btn { display: inline-flex; }
+    .brand .name { font-size: 15.5px; }
+  }
+</style>
+
+<script>
+  const toggle = document.getElementById('theme-toggle');
+  toggle?.addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('theme', next); } catch {}
+  });
+  const menuBtn = document.querySelector<HTMLButtonElement>('.menu-btn');
+  const mobile = document.getElementById('mobile-nav');
+  menuBtn?.addEventListener('click', () => {
+    const open = mobile!.hidden;
+    mobile!.hidden = !open;
+    menuBtn.setAttribute('aria-expanded', String(open));
+  });
+</script>

@@ -1,0 +1,47 @@
+---
+import Figure from '../mdx/Figure.astro';
+const cols = [
+  { h: 'SOURCES', cls: 'box', items: [['Operational DBs', 'Postgres · Oracle'], ['SaaS apps', 'CRM · ERP · billing'], ['Events & IoT', 'clickstream'], ['Documents', 'PDF · email']] },
+  { h: 'INGESTION', cls: 'box', items: [['Batch / ELT', 'scheduled'], ['CDC', 'log-based'], ['Streaming', 'Kafka · Kinesis'], ['File & API', 'SFTP · REST']] },
+  { h: 'STORAGE', cls: 'box-a', items: [['Object storage', 'S3 · ADLS · GCS'], ['File format', 'Parquet · Avro'], ['Table format', 'Iceberg · Delta'], ['Catalog', 'Polaris · Unity']] },
+  { h: 'PROCESSING', cls: 'box', items: [['SQL engines', 'Trino · DuckDB'], ['Compute', 'Spark · Flink'], ['Transformation', 'dbt · SQLMesh'], ['Medallion', 'bronze → gold']] },
+  { h: 'SERVING', cls: 'box-b', items: [['Warehouse', 'marts · OLAP'], ['Semantic layer', 'metrics'], ['Feature store', 'online · offline'], ['Vector index', 'embeddings']] },
+  { h: 'CONSUMPTION', cls: 'box', items: [['BI & dashboards', 'self-service'], ['Data apps & APIs', 'reverse ETL'], ['ML models', 'training · inference'], ['AI agents & RAG', 'LLM apps']] },
+];
+const W = 140, G = 18, X0 = 14, Y0 = 44, IH = 62, IG = 10;
+---
+
+<Figure label="Reference architecture of a modern data and AI platform: sources, ingestion, storage, processing, serving and consumption layers, with governance, orchestration and observability spanning all layers." caption="Figure 1 — The modern data & AI platform: six layers left to right, with cross-cutting concerns underneath.">
+  <svg viewBox="0 0 966 440" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="ra-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow-a"></path></marker>
+    </defs>
+    {cols.map((c, i) => {
+      const x = X0 + i * (W + G);
+      return (
+        <g>
+          <text x={x + W / 2} y="26" text-anchor="middle" class="h">{c.h}</text>
+          {c.items.map((it, j) => {
+            const y = Y0 + j * (IH + IG);
+            return (
+              <g>
+                <rect x={x} y={y} width={W} height={IH} rx="10" class={c.cls}></rect>
+                <text x={x + W / 2} y={y + 27} text-anchor="middle" class="t" style="font-size:13px">{it[0]}</text>
+                <text x={x + W / 2} y={y + 45} text-anchor="middle" class="s">{it[1]}</text>
+              </g>
+            );
+          })}
+          {i < cols.length - 1 && <line x1={x + W + 2} y1="180" x2={x + W + G - 2} y2="180" class="lna" marker-end="url(#ra-arr)"></line>}
+        </g>
+      );
+    })}
+    <g>
+      <rect x="14" y="348" width="938" height="36" rx="10" class="box-b"></rect>
+      <text x="483" y="371" text-anchor="middle" class="t tb" style="font-size:13px">Governance · catalog, lineage, access control, privacy, data contracts</text>
+      <rect x="14" y="392" width="462" height="36" rx="10" class="box"></rect>
+      <text x="245" y="415" text-anchor="middle" class="t" style="font-size:13px">Orchestration &amp; CI/CD</text>
+      <rect x="490" y="392" width="462" height="36" rx="10" class="box"></rect>
+      <text x="721" y="415" text-anchor="middle" class="t" style="font-size:13px">Observability · quality · cost (FinOps)</text>
+    </g>
+  </svg>
+</Figure>

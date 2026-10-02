@@ -1,0 +1,67 @@
+---
+// Wrapper for inline SVG diagrams: consistent framing, caption and click-to-expand.
+interface Props { caption?: string; label: string }
+const { caption, label } = Astro.props;
+---
+
+<figure class="diagram">
+  <div class="frame" role="img" aria-label={label}>
+    <slot />
+    <button type="button" class="expand" aria-label="Expand diagram" data-expand>⤢ Expand</button>
+  </div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .diagram { margin: 2.2em 0; }
+  .frame { position: relative; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-elev); padding: 18px; overflow-x: auto; }
+  .frame :global(svg) { display: block; width: 100%; min-width: 600px; height: auto; font-family: var(--font-sans); }
+  .expand {
+    position: absolute; top: 8px; right: 8px; font: 600 12px var(--font-sans); padding: 5px 9px; border-radius: 7px; cursor: zoom-in;
+    border: 1px solid var(--border); background: var(--bg-elev); color: var(--text-soft); opacity: 0; transition: opacity .15s;
+  }
+  .frame:hover .expand, .expand:focus { opacity: 1; }
+  @media (hover: none) { .expand { opacity: 1; } }
+  :global(.diagram-lightbox) {
+    width: min(1400px, 96vw); max-width: 96vw; max-height: 94vh; padding: 28px; border: 1px solid var(--border); border-radius: 16px;
+    background: var(--bg-elev); color: var(--text); overflow: auto;
+  }
+  :global(.diagram-lightbox::backdrop) { background: rgba(10, 12, 16, .6); backdrop-filter: blur(4px); }
+  :global(.diagram-lightbox svg) { display: block; width: 100%; min-width: 900px; height: auto; font-family: var(--font-sans); }
+  :global(.diagram-lightbox .close) { position: sticky; float: right; top: 0; font: 600 13px var(--font-sans); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-soft); color: var(--text); cursor: pointer; }
+  /* shared SVG token classes (inline + lightbox) */
+  :global(.frame .box, .diagram-lightbox .box) { fill: var(--bg-soft); stroke: var(--border); }
+  :global(.frame .box-a, .diagram-lightbox .box-a) { fill: var(--accent-soft); stroke: color-mix(in srgb, var(--accent) 45%, transparent); }
+  :global(.frame .box-b, .diagram-lightbox .box-b) { fill: var(--info-soft); stroke: color-mix(in srgb, var(--accent-2) 45%, transparent); }
+  :global(.frame .box-w, .diagram-lightbox .box-w) { fill: var(--warn-soft); stroke: color-mix(in srgb, var(--warn) 45%, transparent); }
+  :global(.frame .t, .diagram-lightbox .t) { fill: var(--text); font-size: 14px; font-weight: 650; }
+  :global(.frame .s, .diagram-lightbox .s) { fill: var(--text-mute); font-size: 11.5px; }
+  :global(.frame .h, .diagram-lightbox .h) { fill: var(--text-mute); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+  :global(.frame .ta, .diagram-lightbox .ta) { fill: var(--accent-ink); }
+  :global(.frame .tb, .diagram-lightbox .tb) { fill: var(--accent-2); }
+  :global(.frame .ln, .diagram-lightbox .ln) { stroke: var(--text-mute); stroke-width: 1.6; fill: none; }
+  :global(.frame .lna, .diagram-lightbox .lna) { stroke: var(--accent); stroke-width: 2; fill: none; }
+  :global(.frame .dash, .diagram-lightbox .dash) { stroke-dasharray: 5 5; }
+  :global(.frame .arrow, .diagram-lightbox .arrow) { fill: var(--text-mute); }
+  :global(.frame .arrow-a, .diagram-lightbox .arrow-a) { fill: var(--accent); }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('[data-expand]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const svg = btn.parentElement?.querySelector('svg');
+      if (!svg) return;
+      const dlg = document.createElement('dialog');
+      dlg.className = 'diagram-lightbox';
+      dlg.setAttribute('aria-label', btn.parentElement?.getAttribute('aria-label') ?? 'Diagram');
+      const close = document.createElement('button');
+      close.className = 'close'; close.type = 'button'; close.textContent = 'Close ✕';
+      close.addEventListener('click', () => dlg.close());
+      dlg.append(close, svg.cloneNode(true));
+      dlg.addEventListener('close', () => dlg.remove());
+      dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+      document.body.appendChild(dlg);
+      dlg.showModal();
+    });
+  });
+</script>

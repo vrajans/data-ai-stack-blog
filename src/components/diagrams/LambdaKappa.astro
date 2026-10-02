@@ -1,0 +1,47 @@
+---
+import Figure from '../mdx/Figure.astro';
+---
+
+<Figure label="Comparison of Lambda architecture with separate batch and speed layers merged at serving, versus Kappa architecture with a single streaming path over a replayable log." caption="Figure 5 — Lambda keeps two code paths (batch for correctness, streaming for speed). Kappa keeps one streaming path and replays the log to reprocess.">
+  <svg viewBox="0 0 960 330" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="lk-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow"></path></marker></defs>
+    <text x="16" y="24" class="h">LAMBDA</text>
+    <rect x="16" y="60" width="120" height="70" rx="10" class="box"></rect>
+    <text x="76" y="100" text-anchor="middle" class="t">Events</text>
+    <rect x="200" y="36" width="220" height="48" rx="10" class="box"></rect>
+    <text x="310" y="58" text-anchor="middle" class="t" style="font-size:13px">Batch layer</text>
+    <text x="310" y="75" text-anchor="middle" class="s">complete, correct, hours late</text>
+    <rect x="200" y="106" width="220" height="48" rx="10" class="box-w"></rect>
+    <text x="310" y="128" text-anchor="middle" class="t" style="font-size:13px">Speed layer</text>
+    <text x="310" y="145" text-anchor="middle" class="s">approximate, seconds late</text>
+    <rect x="490" y="60" width="180" height="70" rx="10" class="box-b"></rect>
+    <text x="580" y="92" text-anchor="middle" class="t" style="font-size:13px">Serving layer</text>
+    <text x="580" y="110" text-anchor="middle" class="s">merge both views</text>
+    <rect x="740" y="60" width="200" height="70" rx="10" class="box"></rect>
+    <text x="840" y="92" text-anchor="middle" class="t" style="font-size:13px">Queries</text>
+    <text x="840" y="110" text-anchor="middle" class="s">two codebases to keep in sync</text>
+    <path d="M136 85 C170 85 170 60 196 60" class="ln" marker-end="url(#lk-arr)"></path>
+    <path d="M136 105 C170 105 170 130 196 130" class="ln" marker-end="url(#lk-arr)"></path>
+    <path d="M420 60 C455 60 455 88 486 88" class="ln" marker-end="url(#lk-arr)"></path>
+    <path d="M420 130 C455 130 455 104 486 104" class="ln" marker-end="url(#lk-arr)"></path>
+    <line x1="670" y1="95" x2="736" y2="95" class="ln" marker-end="url(#lk-arr)"></line>
+
+    <line x1="16" y1="182" x2="944" y2="182" class="ln dash" style="opacity:.5"></line>
+
+    <text x="16" y="212" class="h">KAPPA</text>
+    <rect x="16" y="236" width="120" height="70" rx="10" class="box"></rect>
+    <text x="76" y="276" text-anchor="middle" class="t">Events</text>
+    <rect x="200" y="236" width="220" height="70" rx="10" class="box-a"></rect>
+    <text x="310" y="264" text-anchor="middle" class="t ta" style="font-size:13px">Durable, replayable log</text>
+    <text x="310" y="283" text-anchor="middle" class="s">Kafka · Redpanda · Kinesis</text>
+    <rect x="490" y="236" width="180" height="70" rx="10" class="box-a"></rect>
+    <text x="580" y="266" text-anchor="middle" class="t ta" style="font-size:13px">Stream processor</text>
+    <text x="580" y="284" text-anchor="middle" class="s">one codebase (e.g. Flink)</text>
+    <rect x="740" y="236" width="200" height="70" rx="10" class="box"></rect>
+    <text x="840" y="266" text-anchor="middle" class="t" style="font-size:13px">Tables & views</text>
+    <text x="840" y="284" text-anchor="middle" class="s">reprocess = replay the log</text>
+    <line x1="136" y1="271" x2="196" y2="271" class="ln" marker-end="url(#lk-arr)"></line>
+    <line x1="420" y1="271" x2="486" y2="271" class="ln" marker-end="url(#lk-arr)"></line>
+    <line x1="670" y1="271" x2="736" y2="271" class="ln" marker-end="url(#lk-arr)"></line>
+  </svg>
+</Figure>

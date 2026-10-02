@@ -1,0 +1,37 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SITE } from '../config';
+---
+
+<BaseLayout title="About" description={`About ${SITE.title} and ${SITE.author}.`}>
+  <section class="container">
+    <div class="about prose">
+      <p class="eyebrow">About</p>
+      <h1>Hi, I'm {SITE.author}.</h1>
+      <p class="lead">{SITE.authorBio}</p>
+      <p>
+        <strong>{SITE.title}</strong> is where I publish long-form, research-backed guides on the end-to-end data &amp; AI stack —
+        from how data is captured at the source, through storage, transformation and governance, all the way to analytics,
+        machine learning and generative AI agents.
+      </p>
+      <h2>What you'll find here</h2>
+      <ul>
+        <li><strong>Deep dives</strong>, not listicles — each article aims to be the one reference you bookmark on the topic.</li>
+        <li><strong>Structured series</strong> that build on each other, starting with <a href="/series/data-architecture">Data Architecture</a>.</li>
+        <li><strong>Vendor-neutral analysis</strong> with honest trade-offs, decision frameworks and diagrams.</li>
+      </ul>
+      <h2>Stay in touch</h2>
+      <p>
+        Follow along via <a href="/rss.xml">RSS</a>
+        {SITE.social.linkedin && <> or on <a href={SITE.social.linkedin}>LinkedIn</a></>}. Corrections and suggestions are always welcome.
+      </p>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .about { margin: 64px auto 0; }
+  .eyebrow { color: var(--accent); font-weight: 650; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; margin: 0; }
+  h1 { font-size: clamp(36px, 5vw, 52px); margin: 8px 0 0; }
+  .lead { font-size: 21px; color: var(--text-soft); }
+</style>

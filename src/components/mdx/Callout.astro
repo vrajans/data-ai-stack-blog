@@ -1,0 +1,25 @@
+---
+interface Props { type?: 'tip' | 'note' | 'warn' | 'key'; title?: string }
+const { type = 'note', title } = Astro.props;
+const icons = { tip: '💡', note: 'ℹ︎', warn: '⚠︎', key: '★' };
+const defaults = { tip: 'Tip', note: 'Note', warn: 'Watch out', key: 'Key takeaway' };
+---
+
+<aside class:list={['callout', type]} role="note">
+  <p class="c-title"><span aria-hidden="true">{icons[type]}</span> {title ?? defaults[type]}</p>
+  <div class="c-body"><slot /></div>
+</aside>
+
+<style>
+  .callout { margin: 1.8em 0; padding: 16px 20px; border-radius: 12px; border: 1px solid var(--border); border-left-width: 4px; background: var(--bg-elev); font-size: 16.5px; line-height: 1.65; }
+  .c-title { margin: 0 0 6px; font: 700 14px var(--font-display); text-transform: uppercase; letter-spacing: .05em; }
+  .c-body :global(p) { margin: 0; }
+  .c-body :global(p + p), .c-body :global(ul) { margin-top: .6em; }
+  .tip { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, var(--bg-elev)); }
+  .tip .c-title { color: var(--accent-ink); }
+  .note { border-left-color: var(--accent-2); background: color-mix(in srgb, var(--info-soft) 70%, var(--bg-elev)); }
+  .note .c-title { color: var(--accent-2); }
+  .warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .warn .c-title { color: var(--warn); }
+  .key { border-left-color: var(--text); }
+</style>

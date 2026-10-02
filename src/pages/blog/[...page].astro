@@ -1,0 +1,44 @@
+---
+import type { GetStaticPaths, Page } from 'astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { SITE, TRACKS } from '../../config';
+import { getPosts, type Post } from '../../lib/posts';
+
+export const getStaticPaths = (async ({ paginate }) => {
+  const posts = await getPosts();
+  return paginate(posts, { pageSize: SITE.postsPerPage });
+}) satisfies GetStaticPaths;
+
+const { page } = Astro.props as { page: Page<Post> };
+---
+
+<BaseLayout title={page.currentPage > 1 ? `Articles — page ${page.currentPage}` : 'All articles'} description="Every deep dive on the data & AI stack, newest first.">
+  <section class="container">
+    <header class="page-head">
+      <p class="eyebrow">Library</p>
+      <h1>All articles</h1>
+      <p>{page.total} {page.total === 1 ? 'article' : 'articles'} on the end-to-end data &amp; AI stack. Filter by topic:</p>
+      <div class="chips">{TRACKS.map((t) => <a class="pill" href={`/tags/${t.tag}`}>{t.icon} {t.title}</a>)}</div>
+    </header>
+    <div class="grid">{page.data.map((p) => <PostCard post={p} />)}</div>
+    {
+      page.lastPage > 1 && (
+        <nav class="pager" aria-label="Pagination">
+          {page.url.prev ? <a class="btn" href={page.url.prev}>← Newer</a> : <span />}
+          <span class="meta">Page {page.currentPage} of {page.lastPage}</span>
+          {page.url.next ? <a class="btn" href={page.url.next}>Older →</a> : <span />}
+        </nav>
+      )
+    }
+  </section>
+</BaseLayout>
+
+<style>
+  .page-head { margin: 56px 0 36px; max-width: 760px; }
+  .eyebrow { color: var(--accent); font-weight: 650; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; margin: 0; }
+  h1 { font-size: clamp(34px, 5vw, 48px); margin: 8px 0 10px; }
+  .page-head > p:not(.eyebrow) { color: var(--text-soft); margin: 0 0 16px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pager { display: flex; justify-content: space-between; align-items: center; margin-top: 40px; }
+</style>

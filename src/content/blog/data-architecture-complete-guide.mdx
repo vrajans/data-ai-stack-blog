@@ -1,0 +1,434 @@
+---
+title: 'Data Architecture: The Complete Guide for the AI Era'
+description: 'What data architecture really is, the six layers of a modern platform, how we got from warehouses to open lakehouses, the patterns that matter in 2026 — and a practical framework for choosing yours.'
+pubDate: 2026-09-25
+tags: [data-architecture, lakehouse, data-mesh, streaming, generative-ai]
+series: data-architecture
+seriesOrder: 1
+featured: true
+ogImage: /og/data-architecture-complete-guide.png
+---
+
+import Callout from '../../components/mdx/Callout.astro';
+import ReferenceArchitecture from '../../components/diagrams/ReferenceArchitecture.astro';
+import Evolution from '../../components/diagrams/Evolution.astro';
+import LakehouseAnatomy from '../../components/diagrams/LakehouseAnatomy.astro';
+import Medallion from '../../components/diagrams/Medallion.astro';
+import LambdaKappa from '../../components/diagrams/LambdaKappa.astro';
+
+Every company says it wants to be "AI-first". Very few can answer a simpler question: *where does our data live, how does it move, who owns it, and can we trust it?* That question is what **data architecture** answers — and in 2026 it has quietly become the single biggest predictor of whether AI projects ship or stall.
+
+Models are increasingly a commodity you can rent by the token. The durable advantage is the data you feed them: clean, well-described, governed, and available at the right latency. That is an architecture problem, not a model problem.
+
+This is the first article in a ten-part series. It's deliberately long: think of it as the map. Later parts zoom into each region — table formats, catalogs, modeling, streaming, mesh, cloud reference architectures and AI-ready design. By the end of this piece you should be able to:
+
+- explain what data architecture is (and isn't) to an engineer *and* an executive;
+- sketch the six layers of a modern data platform from memory;
+- understand why the industry moved from warehouses to lakes to lakehouses — and what changed again recently;
+- compare the major patterns (warehouse, lakehouse, mesh, fabric, Lambda/Kappa) honestly;
+- use a practical decision framework for your own organization.
+
+## What data architecture actually is
+
+**Data architecture is the set of decisions that determine how data is captured, stored, moved, transformed, governed and served across an organization — and the structures that make those decisions durable.**
+
+Two words in that definition deserve emphasis.
+
+*Decisions.* Architecture is not a diagram with vendor logos. It's a series of choices with long half-lives: which storage layer is the system of record, which formats you commit to, where business logic lives, who is allowed to change a schema, what "fresh" means. Tools implement those decisions; they don't replace them.
+
+*Durable.* Good architecture makes the right thing easy and the wrong thing hard *after the architect leaves the room*. It survives team changes, vendor migrations, and the next wave of hype.
+
+### What it is not
+
+It helps to separate data architecture from its neighbours, because the terms are used loosely:
+
+| Discipline | Core question | Typical output |
+|---|---|---|
+| **Data architecture** | How does data flow and live across the organization? | Platform blueprint, standards, principles, target state |
+| **Data modeling** | How is a given dataset structured and related? | Conceptual / logical / physical models, schemas |
+| **Data engineering** | How do we build and run the pipelines? | Pipelines, jobs, infrastructure-as-code |
+| **Data governance** | Who can do what with which data, and is it trustworthy? | Policies, ownership, catalogs, quality rules |
+| **Enterprise architecture** | How do business capabilities, apps, data and tech fit together? | Capability maps, application portfolios, roadmaps |
+
+Data architecture sits in the middle: it takes business capabilities from enterprise architecture, sets the rules that modeling and governance operate within, and gives engineering a target to build toward.
+
+### The three levels of the blueprint
+
+Classic data management practice (for example, the DAMA-DMBOK body of knowledge) describes architecture at three levels of abstraction. They're still a useful discipline:
+
+1. **Conceptual** — the business view. Core entities (Customer, Order, Product, Claim) and how they relate. No technology at all. This is the level executives should be able to read.
+2. **Logical** — the structure. Attributes, keys, relationships, domains, data flows between systems, independent of any specific product.
+3. **Physical** — the implementation. Actual tables, partitioning, file formats, engines, clusters, networks, security boundaries.
+
+Most failed platforms skip straight to physical. They pick a vendor, then discover twelve months later that nobody agreed what a "customer" is.
+
+## Why it matters more in the AI era
+
+For twenty years the primary consumer of the data platform was a human looking at a dashboard. Humans are forgiving: they notice the weird spike, they ask a colleague, they know that the "region" column in one table means something different in another.
+
+The new consumers — ML models, retrieval-augmented generation (RAG) pipelines and autonomous agents — are not forgiving. They take data literally and at scale. That changes the requirements in four concrete ways:
+
+- **Semantics become mandatory.** An agent that writes SQL needs machine-readable definitions of metrics, entities and relationships. Tribal knowledge doesn't transfer to a language model.
+- **Unstructured data joins the party.** Contracts, tickets, call transcripts, PDFs and images now need to be governed, versioned and searchable alongside tables.
+- **Lineage and access control become safety features.** If an agent can query anything, "who can see what" and "where did this answer come from" stop being compliance checkboxes and become product requirements.
+- **Latency expectations shift.** A copilot answering "what's the status of this order?" can't wait for last night's batch.
+
+<Callout type="key">
+AI doesn't replace data architecture — it raises the bar for it. Most "AI failures" in production trace back to data problems: missing context, stale data, unclear definitions, or ungoverned access.
+</Callout>
+
+## The six layers of a modern data platform
+
+Strip away vendor names and almost every modern data platform — whether it runs on AWS, Azure, Google Cloud, Databricks, Snowflake or open source — has the same shape.
+
+<ReferenceArchitecture />
+
+Let's walk through each layer: what it's for, the key decisions, and where teams commonly go wrong.
+
+### 1. Sources
+
+Everything starts in systems that were *not* built for analytics: operational databases (Postgres, MySQL, Oracle, SQL Server, MongoDB), SaaS applications (Salesforce, SAP, Workday, Stripe, Zendesk), event streams (web and mobile clickstream, IoT telemetry, application logs) and, increasingly, documents and media.
+
+**Key decisions:** Which systems are the *system of record* for each core entity? Who owns each source? What contracts do source teams commit to when they change schemas?
+
+**Common mistake:** treating sources as someone else's problem. The majority of data-quality incidents originate upstream, which is why *data contracts* between producers and consumers have become a mainstream practice (covered in the governance series).
+
+### 2. Ingestion
+
+Ingestion moves data from sources into the platform. There are four fundamental patterns:
+
+- **Batch extract** — periodically pull full tables or increments (often by an `updated_at` watermark). Simple, but misses hard deletes and puts load on sources.
+- **Change data capture (CDC)** — read the database's transaction log (e.g. Postgres WAL, MySQL binlog) and emit every insert, update and delete as an event. Low impact on the source, near-real-time, and it captures deletes. Debezium popularized open-source log-based CDC; most cloud platforms now offer managed equivalents.
+- **Event streaming** — applications publish events to a durable log such as Apache Kafka, Redpanda, Amazon Kinesis, Azure Event Hubs or Google Pub/Sub.
+- **Files & APIs** — SFTP drops, partner files, REST/GraphQL APIs and webhooks. Unglamorous, and still a large share of real-world ingestion.
+
+**Key decisions:** batch vs CDC vs streaming per source; build vs buy connectors (managed ELT services vs open-source frameworks); and — critically — whether you land data *raw and replayable* so you can reprocess later.
+
+<Callout type="tip">
+Land it raw, keep it forever (or as long as policy allows). Storage is cheap; the ability to replay history after you fix a bug is priceless.
+</Callout>
+
+### 3. Storage
+
+This is where the biggest architectural shift of the last decade happened. Storage is no longer "the warehouse's internal disks". In most modern platforms it's a stack of four independent layers:
+
+1. **Object storage** (Amazon S3, Azure Data Lake Storage, Google Cloud Storage) — practically infinite, eleven-nines durable, and cheap.
+2. **Open file format** — overwhelmingly **Apache Parquet** for analytics: columnar, compressed, with per-column statistics that let engines skip data.
+3. **Open table format** — **Apache Iceberg**, **Delta Lake**, **Apache Hudi** or the newer **DuckLake**, which add database behaviour (ACID transactions, schema evolution, time travel, efficient updates and deletes) on top of plain files.
+4. **Catalog** — the service that maps a table name to its current metadata and enforces who can access it.
+
+We'll unpack this stack properly in the lakehouse section below — it's the heart of modern data architecture.
+
+**Key decisions:** open vs proprietary storage; which table format; which catalog; how you partition and cluster data; retention and tiering.
+
+### 4. Processing and transformation
+
+Raw data becomes useful data here. The dominant paradigm is **ELT** — *extract, load, then transform inside the platform* — which replaced classic ETL once cloud compute became elastic enough to transform data where it lands.
+
+Common building blocks:
+
+- **SQL engines** — cloud warehouses (Snowflake, BigQuery, Redshift, Databricks SQL, Microsoft Fabric) and open engines (Trino, DuckDB, Apache DataFusion, ClickHouse).
+- **Distributed compute** — Apache Spark for large-scale batch and ML feature pipelines; Apache Flink (and Spark Structured Streaming) for stateful stream processing.
+- **Transformation frameworks** — dbt and SQLMesh bring software engineering practice (version control, modularity, tests, CI/CD) to SQL.
+- **Layered refinement** — typically the medallion pattern (bronze → silver → gold), covered below.
+
+**Key decisions:** where business logic lives (one governed transformation layer, not scattered across BI tools); batch vs streaming per use case; how you test and deploy transformations.
+
+### 5. Serving
+
+Serving is about delivering data to consumers in the shape and latency they need. One size rarely fits all:
+
+- **Warehouse / lakehouse marts** for BI and ad-hoc SQL.
+- **Real-time OLAP stores** (e.g. ClickHouse, Apache Druid, Apache Pinot, StarRocks) for sub-second, high-concurrency, user-facing analytics.
+- **Semantic layer** — a single, versioned definition of metrics and entities ("net revenue", "active customer") consumed by BI tools, notebooks *and* AI agents.
+- **Feature stores** for ML — consistent features offline for training and online for low-latency inference.
+- **Vector indexes** for semantic search and RAG — increasingly built *into* existing databases and lakehouses rather than run as a separate system.
+- **Operational serving** — APIs, caches and *reverse ETL* that push modeled data back into CRMs, marketing tools and apps.
+
+### 6. Consumption
+
+Finally, people and machines use the data: dashboards and self-service BI, embedded analytics in products, data science notebooks, ML models in production, and — the fastest-growing category — LLM-powered copilots and agents.
+
+**Key decision:** design from here backwards. Every layer to the left exists to serve a consumer on the right. If you can't name the consumers and their latency, freshness and accuracy needs, you're not ready to choose tools.
+
+### The cross-cutting concerns
+
+The band underneath Figure 1 isn't decoration. These concerns span every layer, and neglecting them is the most common reason platforms lose trust:
+
+- **Governance** — catalog and discovery, ownership, lineage, classification of sensitive data, access control (role- and attribute-based), privacy and retention.
+- **Orchestration & CI/CD** — scheduling and dependency management (Apache Airflow, Dagster, Prefect or platform-native schedulers), plus version control and automated deployment for pipelines and infrastructure.
+- **Observability & quality** — tests, freshness and volume monitoring, anomaly detection, incident management, and *cost* observability (FinOps).
+- **Security** — encryption, network isolation, secrets management, least-privilege identities for humans, services and agents.
+
+## How we got here: five generations
+
+Understanding the history isn't nostalgia — it explains why today's architectures look the way they do, and it inoculates you against re-learning old lessons.
+
+<Evolution />
+
+**Generation 1 — the enterprise data warehouse (1990s–2000s).** Bill Inmon's top-down, normalized *corporate information factory* and Ralph Kimball's bottom-up *dimensional modeling* (star schemas of facts and dimensions) defined the era. Data was cleaned and modeled *before* loading (schema-on-write) into expensive, on-premises MPP systems. The upside: one trusted version of the truth. The downside: rigid, slow to change, costly, and limited to structured data.
+
+**Generation 2 — the Hadoop data lake (roughly 2006–2015).** Web-scale companies needed to store everything — logs, clickstream, semi-structured data — cheaply. HDFS and MapReduce (and later Hive and Spark) offered schema-on-read on commodity hardware. The upside: scale and variety. The downside: without transactions, schema enforcement or good metadata, many lakes decayed into "data swamps", and operating Hadoop clusters was hard.
+
+**Generation 3 — the cloud data warehouse (roughly 2012–2020).** Amazon Redshift, Google BigQuery and Snowflake moved the warehouse to the cloud, and — crucially for Snowflake and BigQuery — *separated storage from compute*, so you could scale each independently and pay per use. SQL analytics became elastic and largely managed. The downside: data sat in proprietary storage, so ML and non-SQL workloads often meant copying data back out to a lake. Many companies ended up running *both* a lake and a warehouse, with pipelines and inconsistencies between them.
+
+**Generation 4 — the lakehouse (2020 onward).** Open table formats — Apache Hudi (from Uber), Apache Iceberg (from Netflix) and Delta Lake (from Databricks) — brought warehouse-grade reliability (ACID transactions, schema enforcement, time travel) to files in object storage. The 2021 CIDR paper "Lakehouse: A New Generation of Open Platforms that Unify Data Warehousing and Advanced Analytics" gave the pattern its name: one copy of data in open formats, serving BI *and* ML.
+
+**Generation 5 — the open, AI-ready platform (2024 onward).** Two things changed recently. First, *interoperability won*: the major warehouses now read and write Iceberg tables, Delta can expose Iceberg-compatible metadata, and the **Iceberg REST catalog specification** became the common protocol engines use to find and commit to tables. Second, AI raised the requirements: unstructured data, vectors, semantic context and governance for non-human users are now first-class concerns.
+
+<Callout type="note" title="The lesson of history">
+Each generation fixed the previous generation's biggest pain and introduced a new one. Warehouses fixed trust but lost flexibility; lakes fixed flexibility but lost trust; lakehouses restore both but add metadata and operational complexity. Choose knowing which pain you're signing up for.
+</Callout>
+
+## The major architecture patterns, compared
+
+"Pattern" gets used for several different things, so it helps to group them by the question they answer:
+
+- **Where does data live and how is it stored?** → warehouse, lake, lakehouse.
+- **How is data processed in time?** → batch, Lambda, Kappa, streaming lakehouse.
+- **Who owns data and how is the platform organized?** → centralized, data mesh, hub-and-spoke.
+- **How is data integrated across many systems?** → data fabric, data virtualization.
+
+These are *not* mutually exclusive. A realistic 2026 architecture might be a lakehouse (storage), mostly batch with a few streaming paths (processing), organized as a hub-and-spoke mesh (ownership), with metadata-driven automation borrowed from fabric thinking (integration).
+
+| Pattern | Best at | Weak at | Typical fit |
+|---|---|---|---|
+| **Cloud data warehouse** | Fast, governed SQL/BI with minimal ops | Unstructured data, ML at scale, open access from other engines | SQL-centric analytics teams; smaller orgs wanting simplicity |
+| **Data lake** | Cheap storage for any data; data science exploration | Reliability, governance, BI performance (without a table format) | Raw landing zone; archives; ML on files |
+| **Lakehouse** | One open copy for BI + ML + AI; multi-engine access; cost at scale | Requires metadata/catalog discipline; more moving parts | Most mid-to-large platforms being built today |
+| **Data mesh** | Scaling ownership across many domains | Needs mature platform + culture; overkill for small orgs | Large, federated enterprises with strong domain teams |
+| **Data fabric** | Integrating many heterogeneous systems via metadata | Can become an abstraction layer nobody understands | Enterprises with many legacy platforms that can't be consolidated |
+| **Lambda** | Real-time + historically correct results | Two codebases to maintain and reconcile | Legacy streaming stacks; being phased out in many places |
+| **Kappa / streaming-first** | One code path, low latency, replayable | Stateful streaming is hard to operate; not everything needs it | Event-driven products, fraud, IoT, operational analytics |
+
+## Deep dive: the open lakehouse
+
+Because it's the default choice for most new platforms, the lakehouse deserves a closer look. The key insight is that a "lakehouse" isn't a product — it's a *stack of independent decisions*.
+
+<LakehouseAnatomy />
+
+### Why files alone aren't enough
+
+Imagine a table stored as a folder of Parquet files. Now try to:
+
+- update 1,000 rows (Parquet files are immutable, so you must rewrite files);
+- let a reader query while a writer is halfway through replacing files;
+- add a column without rewriting history;
+- ask "what did this table look like last Tuesday?"
+
+A plain folder can't do any of this safely. A **table format** solves it by adding a metadata layer that tracks *exactly which files make up the table at each point in time*. Every write produces a new immutable snapshot, and a commit is an atomic swap of a single pointer. Readers always see a consistent snapshot; writers use optimistic concurrency; old snapshots enable time travel and rollback.
+
+### The formats in 2026
+
+- **Apache Iceberg** — created at Netflix, now the broadest cross-vendor standard. Its hierarchical metadata (metadata file → manifest list → manifests → data files) enables planning over huge tables without listing directories, and features such as *hidden partitioning* and *partition evolution* let you change a partition scheme without rewriting data. The **v3 specification** added deletion vectors, row lineage and a `VARIANT` type for semi-structured data, closing gaps that previously favored Delta, and v3 support has been rolling out across the major platforms through 2026.
+- **Delta Lake** — created by Databricks, based on an ordered transaction log (`_delta_log`). Deeply integrated with Spark and Databricks. Through *UniForm*, Delta tables can also publish Iceberg-compatible metadata so Iceberg readers can query them.
+- **Apache Hudi** — created at Uber for incremental, upsert-heavy pipelines; strong at record-level indexing and streaming ingestion.
+- **DuckLake** — a newer, deliberately simpler design from the DuckDB team: data stays in Parquet on object storage, but *all metadata lives in an ordinary SQL database* instead of many small metadata files. It reached its v1.0 specification in April 2026, with features like small-change inlining to avoid the "small files problem".
+
+<Callout type="key">
+The "format war" has mostly settled into interoperability, with Iceberg as the common denominator. The strategic decision has moved one level up — to the **catalog**.
+</Callout>
+
+### The catalog: the new control plane
+
+A table format tells an engine how to read a snapshot. The **catalog** tells it *which* snapshot is current, and enforces who's allowed to see it. That makes the catalog the point of control for governance — and for lock-in.
+
+The **Iceberg REST catalog specification** is now the common protocol: any engine that speaks it can create, read and commit to tables in any compliant catalog, and modern implementations support *credential vending* — issuing short-lived, scoped storage credentials so engines never hold long-lived keys. The main options:
+
+- **Apache Polaris** — the open-source REST catalog originally created by Snowflake and Dremio, donated to the Apache Software Foundation in 2024 and graduated to a top-level Apache project in February 2026.
+- **Unity Catalog** — Databricks' governance catalog (with an open-source version), spanning tables, files, ML models and AI assets.
+- **AWS Glue Data Catalog** and **Amazon S3 Tables** — AWS-native options, the latter making Iceberg tables a first-class storage resource.
+- **Snowflake Horizon / Open Catalog**, **Google BigLake metastore**, **Microsoft OneLake**, and open-source **Project Nessie** (Git-like branching for data).
+
+We'll compare these in depth in Part 4. For now, the rule of thumb: **choose a catalog that fully implements the open REST specification**, or accept that the catalog vendor is your platform.
+
+## Medallion architecture: layers of refinement
+
+Inside the platform, most teams organize data into progressively refined layers. Databricks popularized the *medallion* naming, but the idea — raw, staged/cleaned, presentation — is as old as data warehousing.
+
+<Medallion />
+
+- **Bronze (raw)** — data as it arrived, plus load metadata (source, timestamp, batch ID). Append-only and replayable. No business logic.
+- **Silver (cleaned & conformed)** — deduplicated, correctly typed, with conformed keys (one `customer_id`, one definition of a date), and quality rules enforced. This is often where CDC streams are merged into current-state tables.
+- **Gold (business-ready)** — facts and dimensions, aggregates, metrics and data products designed for specific consumers, with named owners and service levels.
+
+<Callout type="warn" title="Common medallion mistakes">
+Treating the three layers as a mandatory religion (some sources can go straight to silver; some use cases need a fourth "platinum" or serving layer). Letting business logic leak into bronze. And building gold tables per dashboard instead of reusable, well-modeled data products — the fastest route to 400 slightly different revenue numbers.
+</Callout>
+
+### Where modeling fits
+
+The medallion pattern tells you *how many hops*; it doesn't tell you *how to model* the tables in each hop. The main modeling approaches are still very much alive:
+
+| Approach | Idea | Strengths | Watch-outs |
+|---|---|---|---|
+| **Kimball (dimensional)** | Star schemas: facts (events, measures) + dimensions (context) | Intuitive for BI; performant; well understood | Needs conformed dimensions discipline across teams |
+| **Inmon (3NF EDW)** | Normalized enterprise model, then marts | Integrated, low redundancy | Slow to build; heavy upfront design |
+| **Data Vault 2.0** | Hubs (keys), links (relationships), satellites (history) | Auditable, handles change & many sources well | More tables and joins; needs a presentation layer on top |
+| **One Big Table (OBT)** | Wide, denormalized tables per use case | Simple for consumers; great with columnar engines | Duplication; definitions drift if not governed |
+
+A common, pragmatic combination: Data Vault or lightly modeled tables in silver for integration and history, Kimball-style stars or wide tables in gold for consumption, with a semantic layer on top. Part 5 of the series covers this in depth.
+
+## Batch, streaming and everything in between
+
+Not every use case needs real-time data — and real-time is always more expensive to build and run. The right question isn't "batch or streaming?" but "**what freshness does this consumer actually need, and what is it worth?**"
+
+| Latency tier | Freshness | Typical use cases | Typical approach |
+|---|---|---|---|
+| **Batch** | Hours to a day | Finance reporting, planning, most BI | Scheduled ELT, daily/hourly jobs |
+| **Micro-batch / near-real-time** | Minutes | Operational dashboards, inventory, marketing triggers | CDC + frequent incremental loads, streaming ingestion into table formats |
+| **Real-time** | Seconds | Fraud detection, personalization, logistics tracking, agent context | Event streaming + stream processing + real-time OLAP or online stores |
+| **Transactional** | Milliseconds, in-request | Payments, pricing, in-app decisions | Operational databases and services — not the analytics platform |
+
+Two classic architectures describe how to combine historical and real-time processing:
+
+<LambdaKappa />
+
+- **Lambda architecture** (named by Nathan Marz) runs a batch layer for complete, correct results *and* a speed layer for low-latency approximations, merging them at query time. It works, but you maintain the same logic twice.
+- **Kappa architecture** (proposed by Jay Kreps in 2014) keeps a single streaming path over a durable, replayable log. To reprocess, you replay the log through the new version of the job.
+
+In 2026 the common middle ground is the **streaming lakehouse**: stream processors (Flink, Spark Structured Streaming, or managed services) write continuously into Iceberg/Delta/Hudi tables, which the same batch and BI engines query. Streams and tables become two views of the same data, and you only pay for true real-time where it earns its keep.
+
+## Organizational architecture: who owns the data?
+
+Conway's law applies to data platforms: systems mirror the communication structure of the organizations that build them. The technology choices above are only half of the architecture; the ownership model is the other half.
+
+**Centralized.** A central data team ingests, models and serves everything. Great for consistency and for small-to-mid organizations. It breaks down when the central team becomes a bottleneck with a six-month backlog and limited domain knowledge.
+
+**Data mesh.** Introduced by Zhamak Dehghani in 2019, data mesh proposes four principles:
+
+1. **Domain ownership** — the teams closest to the data (e.g. Payments, Logistics) own their analytical data, not a central team.
+2. **Data as a product** — datasets are products with owners, documentation, SLAs, quality guarantees and consumers in mind.
+3. **Self-serve data platform** — a central platform team provides paved roads (storage, pipelines, catalog, access control) so domains don't reinvent infrastructure.
+4. **Federated computational governance** — global rules (interoperability standards, security, privacy) are set jointly and *enforced automatically by the platform*, not by committee.
+
+Years of real-world adoption produced a clear lesson: mesh is primarily an *organizational* change, not a technology you buy. The principles that travel well to almost any organization are *data as a product* and *governance as code*. Full decentralization pays off mainly in large enterprises with strong, data-literate domain teams.
+
+**Hub-and-spoke (the pragmatic middle).** A central platform team owns infrastructure, standards and shared core data (customer, product, finance), while a handful of mature domains publish their own data products. This is where most organizations actually land.
+
+**Data fabric** is a complementary idea: use *active metadata* — catalogs, lineage, usage statistics, knowledge graphs — to automate integration, discovery and governance across many heterogeneous systems. Where mesh is about *people and ownership*, fabric is about *metadata and automation*. Mature platforms tend to borrow from both.
+
+## Designing an AI-ready data architecture
+
+Everything above still applies. AI adds a set of requirements that should be designed in, not bolted on. (Part 9 of the series is dedicated to this.)
+
+1. **Treat unstructured data as a governed asset.** Documents, transcripts and images need the same things tables do: ownership, access control, lineage, retention and quality checks. Land them in object storage with metadata, and track them in your catalog.
+2. **Make semantics machine-readable.** A semantic layer (metric and entity definitions as code), a well-documented catalog, and business glossaries are the "context" that lets an LLM write correct SQL or pick the right table. Descriptions and column comments are no longer nice-to-have documentation; they're prompt material.
+3. **Put vectors close to the data.** Embeddings for retrieval can live in a dedicated vector database, but many teams now prefer vector search inside the database or lakehouse they already govern, to avoid yet another copy of sensitive data with its own security model.
+4. **Govern non-human identities.** Agents and AI services need their own identities, least-privilege access, row/column-level security that applies to them, and full audit trails. Protocols such as the Model Context Protocol (MCP) make it easy to connect agents to data — which makes the governance layer underneath more important, not less.
+5. **Capture feedback and evaluation data.** Prompts, retrieved context, model outputs, user feedback and evaluation scores are data too. Store them in the platform so you can monitor quality, debug answers and improve over time.
+6. **Keep freshness honest.** Decide which AI use cases need real-time context (customer support, operations) and which are fine with daily data (research, reporting assistants), and architect accordingly.
+
+<Callout type="tip" title="A simple AI-readiness test">
+Pick one important business question. Could a new analyst answer it correctly in a day using only your catalog, semantic layer and documentation — without asking anyone? If not, an AI agent can't either.
+</Callout>
+
+## Core principles of good data architecture
+
+Tools change every few years. These principles have held up across every generation:
+
+1. **Design from consumers backwards.** Start from decisions, products and models the data must serve, and their latency, accuracy and access needs.
+2. **Separate storage from compute.** It lets you scale, price and swap each independently — and run multiple engines on the same data.
+3. **Prefer open formats and open protocols** for your system of record (Parquet, Iceberg/Delta, REST catalogs). You can always put a proprietary engine on top of open storage; the reverse is costly.
+4. **Keep raw data immutable and replayable.** Most pipeline bugs are recoverable if you can recompute from history.
+5. **Make pipelines idempotent and declarative.** Re-running a job should produce the same result, not duplicates. Define *what* a dataset is, and let orchestration handle *when*.
+6. **One place for business logic.** Metrics defined once, in a governed transformation or semantic layer — never re-implemented in every dashboard.
+7. **Governance by design, automated.** Classification, access policies, lineage and quality tests are part of the pipeline, not a quarterly audit.
+8. **Treat data as a product.** Every important dataset has an owner, documentation, a contract, and service levels.
+9. **Right-size latency.** Real-time where it creates value; batch everywhere else.
+10. **Make cost visible.** Tag workloads, show teams what their queries and pipelines cost, and treat efficiency as a design goal.
+
+## A practical decision framework
+
+There is no universally "best" architecture — only the one that fits your constraints. Work through these questions in order; each narrows the next.
+
+**1. Who are the consumers, and what do they need?**
+List the top five to ten use cases. For each: consumer (human, model, agent, app), freshness, query pattern, data types, and accuracy requirement.
+
+**2. What are your constraints?**
+Team size and skills (SQL-heavy vs engineering-heavy), budget model, regulatory requirements (data residency, privacy), existing cloud commitments, and existing platforms you can't retire.
+
+**3. Choose the storage paradigm.**
+If you're small, SQL-centric and mostly structured, a managed cloud warehouse is often the fastest path to value — ideally one that can read and write open table formats so you keep options open. If you have significant ML/AI, unstructured data, multiple engines or large volumes, choose a lakehouse with an open table format and an open catalog.
+
+**4. Choose the processing model per use case, not globally.**
+Default to batch/micro-batch; add streaming paths where the latency tier justifies it.
+
+**5. Choose the ownership model that matches your organization.**
+Centralized until the central team is a bottleneck; then hub-and-spoke with data products; full mesh only when domains are genuinely ready.
+
+**6. Design governance and observability from day one.**
+Catalog, ownership, access control, lineage and quality checks — scoped small at first, but present from the first pipeline.
+
+Here's how this typically plays out by stage:
+
+| Stage | Typical shape | Avoid |
+|---|---|---|
+| **Startup / first platform** (1–5 data people) | Managed ELT + one cloud warehouse or lakehouse + dbt/SQLMesh + BI; Iceberg/Delta where cheap to adopt | Kafka, Kubernetes and mesh before you have a real need |
+| **Scale-up** (5–30) | Lakehouse on object storage with an open catalog; medallion layers; semantic layer; CDC for key sources; first streaming use cases; data contracts | Letting each team pick its own warehouse; metrics defined in BI tools |
+| **Enterprise** (30+ across domains) | Multi-engine open lakehouse; hub-and-spoke or mesh with data products; federated, automated governance; platform team with paved roads; AI/agent access through governed interfaces | Big-bang migrations; centralizing everything *or* decentralizing everything overnight |
+
+## Anti-patterns to avoid
+
+- **Tool-first architecture.** Choosing a vendor before understanding consumers, constraints and ownership.
+- **The data swamp.** Landing everything with no catalog, owners or quality checks — "we'll document it later".
+- **The copy explosion.** The same data copied into a lake, a warehouse, three marts, a vector store and a dozen spreadsheets, each with its own security model.
+- **Dashboard-driven modeling.** One gold table per dashboard, instead of reusable data products and a semantic layer.
+- **Real-time everything.** Paying for streaming complexity where hourly data would do.
+- **Governance as a committee.** Policies in slide decks rather than enforced in the platform.
+- **Ignoring cost until the bill arrives.** Unpartitioned tables, runaway queries, idle clusters and zombie pipelines.
+- **Resume-driven design.** Adopting the newest pattern because it's interesting, not because it solves a problem you have.
+
+## A starter blueprint you can adapt
+
+If you're designing a platform for a mid-size organization today and want a sensible, vendor-neutral default, this is a strong starting point:
+
+1. **Storage:** object storage in your primary cloud, Parquet files, **Apache Iceberg** tables (or Delta with Iceberg compatibility if you're Databricks-centric).
+2. **Catalog:** a catalog implementing the **Iceberg REST spec** (your platform's native one or Apache Polaris), with RBAC and credential vending enabled.
+3. **Ingestion:** managed connectors for SaaS; log-based CDC for core operational databases; an event streaming platform only for genuine event-driven use cases.
+4. **Processing:** one primary SQL engine for BI/ELT, Spark for heavy batch and ML, and a stream processor only where needed. Transformations in dbt or SQLMesh with tests and CI.
+5. **Layers:** bronze (raw, replayable) → silver (clean, conformed) → gold (data products), with owners and contracts on gold.
+6. **Serving:** a semantic layer for metrics; a real-time OLAP store or online feature store only for use cases that need it; vector search close to governed data.
+7. **Governance & ops:** catalog-driven discovery, column-level lineage, automated classification and masking of sensitive data, quality tests in every pipeline, orchestration as code, and cost dashboards per team.
+
+Start small — one or two high-value use cases end to end — and let the architecture grow with real demand.
+
+## What's next in this series
+
+This article was the map. The next parts zoom in:
+
+1. **Data Architecture: The Complete Guide** — *you are here*
+2. Warehouse vs Lake vs Lakehouse: A Decision Guide
+3. Open Table Formats Deep Dive: Iceberg, Delta, Hudi & DuckLake
+4. Catalogs: The Metadata Control Plane
+5. Data Modeling for the Modern Stack
+6. Batch, Streaming & Real-Time Architectures
+7. Data Mesh & Data Fabric in Practice
+8. Reference Architectures on AWS, Azure, GCP, Databricks & Snowflake
+9. Designing AI-Ready Data Architecture
+10. Cost, Performance & FinOps for Data Platforms
+
+Follow via [RSS](/rss.xml) or check the [series roadmap](/series/data-architecture) to see what's published.
+
+## Key takeaways
+
+- Data architecture is a set of **durable decisions** about how data is captured, stored, moved, governed and served — not a vendor diagram.
+- Every modern platform has **six layers** (sources, ingestion, storage, processing, serving, consumption) plus cross-cutting **governance, orchestration and observability**.
+- The industry moved from warehouses to lakes to lakehouses; today's default is an **open lakehouse**: object storage + Parquet + an open table format + a REST catalog, queried by many engines.
+- The table-format debate has largely converged on interoperability; **the catalog is now the strategic control point**.
+- **Right-size latency**, choose an **ownership model that matches your organization**, and treat important datasets as **products**.
+- AI raises the bar: **machine-readable semantics, governed unstructured data and governed agent access** are now architectural requirements.
+
+## References and further reading
+
+- Armbrust, Ghodsi, Xin, Zaharia — [Lakehouse: A New Generation of Open Platforms that Unify Data Warehousing and Advanced Analytics](https://www.cidrdb.org/cidr2021/papers/cidr2021_paper17.pdf), CIDR 2021.
+- Zhamak Dehghani — [How to Move Beyond a Monolithic Data Lake to a Distributed Data Mesh](https://martinfowler.com/articles/data-monolith-to-mesh.html) (2019) and [Data Mesh Principles and Logical Architecture](https://martinfowler.com/articles/data-mesh-principles.html) (2020).
+- Jay Kreps — [Questioning the Lambda Architecture](https://www.oreilly.com/radar/questioning-the-lambda-architecture/) (2014).
+- [Apache Iceberg table specification](https://iceberg.apache.org/spec/) and [REST catalog OpenAPI spec](https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml).
+- [Apache Polaris](https://polaris.apache.org/) · [Delta Lake](https://delta.io/) · [Apache Hudi](https://hudi.apache.org/) · [DuckLake](https://ducklake.select/).
+- DuckDB Labs — [DuckLake v1.0: The Lakehouse Format Built on SQL Reaches Production-Readiness](https://duckdb.org/2026/04/13/ducklake-10) (April 2026).
+- Dremio — [Apache Polaris: The Catalog Standard for Iceberg Lakehouses](https://www.dremio.com/blog/apache-polaris-the-catalog-standard-for-lakehouses-and-ai/).
+- Alex Merced — [The State of Apache Iceberg Catalogs in June 2026](https://dev.to/alexmercedcoder/the-state-of-apache-iceberg-catalogs-in-june-2026-265e).
+- Ralph Kimball & Margy Ross — *The Data Warehouse Toolkit* (3rd ed., Wiley, 2013).
+- Joe Reis & Matt Housley — *Fundamentals of Data Engineering* (O'Reilly, 2022).
+- DAMA International — *DAMA-DMBOK: Data Management Body of Knowledge* (2nd ed.).

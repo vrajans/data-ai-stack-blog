@@ -1,0 +1,39 @@
+---
+import Figure from '../mdx/Figure.astro';
+const engines = ['Spark', 'Trino / Presto', 'Flink', 'Snowflake', 'Databricks', 'DuckDB', 'BigQuery', 'Python'];
+---
+
+<Figure label="Anatomy of an open lakehouse: many compute engines on top of a catalog, a table format, a file format and object storage." caption="Figure 3 — Anatomy of the open lakehouse. Each layer is a separate, swappable decision; the catalog is the control point that every engine talks to.">
+  <svg viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg">
+    <text x="20" y="28" class="h">COMPUTE ENGINES — bring your own, many at once</text>
+    {engines.map((e, i) => (
+      <g>
+        <rect x={20 + i * 108} y="40" width="98" height="44" rx="9" class="box"></rect>
+        <text x={69 + i * 108} y="67" text-anchor="middle" class="t" style="font-size:12.5px">{e}</text>
+      </g>
+    ))}
+    {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <line x1={69 + i * 108} y1="86" x2={69 + i * 108} y2="112" class="ln dash"></line>)}
+
+    <rect x="20" y="114" width="860" height="66" rx="12" class="box-b"></rect>
+    <text x="40" y="141" class="t tb">Catalog  —  the control plane</text>
+    <text x="40" y="162" class="s">Iceberg REST spec · Apache Polaris · Unity Catalog · AWS Glue / S3 Tables · Nessie · Snowflake Horizon</text>
+    <text x="860" y="141" text-anchor="end" class="s">names → current metadata pointer</text>
+    <text x="860" y="162" text-anchor="end" class="s">access control · credential vending</text>
+
+    <rect x="20" y="196" width="860" height="66" rx="12" class="box-a"></rect>
+    <text x="40" y="223" class="t ta">Table format  —  ACID over files</text>
+    <text x="40" y="244" class="s">Apache Iceberg · Delta Lake · Apache Hudi · DuckLake</text>
+    <text x="860" y="223" text-anchor="end" class="s">snapshots · schema evolution · time travel</text>
+    <text x="860" y="244" text-anchor="end" class="s">partition pruning · deletes / updates</text>
+
+    <rect x="20" y="278" width="860" height="56" rx="12" class="box"></rect>
+    <text x="40" y="302" class="t">File format  —  columnar, compressed</text>
+    <text x="40" y="321" class="s">Apache Parquet (analytics) · Avro (row / streaming) · ORC</text>
+    <text x="860" y="312" text-anchor="end" class="s">column pruning · min/max statistics</text>
+
+    <rect x="20" y="350" width="860" height="56" rx="12" class="box"></rect>
+    <text x="40" y="374" class="t">Object storage  —  cheap, durable, infinite</text>
+    <text x="40" y="393" class="s">Amazon S3 · Azure Data Lake Storage · Google Cloud Storage · MinIO / on-prem S3-compatible</text>
+    <text x="860" y="384" text-anchor="end" class="s">roughly $20–25 per TB-month (hot tiers)</text>
+  </svg>
+</Figure>

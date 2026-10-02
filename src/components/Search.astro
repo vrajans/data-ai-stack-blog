@@ -1,0 +1,71 @@
+---
+// Full-text search powered by Pagefind (static, free, runs in the browser).
+// The index is generated after `astro build` by `pagefind --site dist`.
+---
+
+<dialog id="search-dialog" aria-label="Search articles">
+  <div class="search-box">
+    <div id="pagefind-search"></div>
+    <p class="hint">Press <kbd>Esc</kbd> to close</p>
+  </div>
+</dialog>
+
+<style>
+  dialog {
+    width: min(720px, calc(100vw - 32px)); max-height: 80vh; margin: 10vh auto auto; padding: 0;
+    border: 1px solid var(--border); border-radius: 16px; background: var(--bg-elev); color: var(--text); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .45);
+  }
+  dialog::backdrop { background: rgba(10, 12, 16, .45); backdrop-filter: blur(4px); }
+  .search-box { padding: 18px; }
+  .hint { margin: 10px 0 0; font-size: 12.5px; color: var(--text-mute); text-align: right; }
+  kbd { font: 11.5px var(--font-mono); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; }
+  :global(#pagefind-search) {
+    --pagefind-ui-primary: var(--accent); --pagefind-ui-text: var(--text); --pagefind-ui-background: var(--bg-elev);
+    --pagefind-ui-border: var(--border); --pagefind-ui-tag: var(--bg-soft); --pagefind-ui-border-radius: 10px; --pagefind-ui-font: var(--font-sans);
+  }
+  :global(#pagefind-search mark) { background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
+  :global(#pagefind-search .pagefind-ui__search-clear) { background: transparent; color: var(--text-mute); }
+  :global(#pagefind-search .pagefind-ui__result-link) { color: var(--text); }
+  :global(#pagefind-search .pagefind-ui__result-link:hover) { color: var(--accent); }
+</style>
+
+<script>
+  const dialog = document.getElementById('search-dialog') as HTMLDialogElement;
+  let loaded = false;
+
+  async function loadPagefind() {
+    if (loaded) return;
+    loaded = true;
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = '/pagefind/pagefind-ui.css';
+    document.head.appendChild(css);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = '/pagefind/pagefind-ui.js';
+        s.onload = () => resolve();
+        s.onerror = () => reject();
+        document.head.appendChild(s);
+      });
+      // @ts-ignore
+      new window.PagefindUI({ element: '#pagefind-search', showSubResults: true, showImages: false, resetStyles: false, autofocus: true });
+    } catch {
+      document.getElementById('pagefind-search')!.innerHTML =
+        '<p style="color:var(--text-mute)">Search is available on the built site (run <code>npm run build &amp;&amp; npm run preview</code>).</p>';
+    }
+  }
+
+  async function open() {
+    await loadPagefind();
+    dialog.showModal();
+    setTimeout(() => dialog.querySelector<HTMLInputElement>('input')?.focus(), 30);
+  }
+
+  document.querySelectorAll('[data-open-search]').forEach((b) => b.addEventListener('click', open));
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); open(); }
+    if (e.key === '/' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) { e.preventDefault(); open(); }
+  });
+  dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+</script>

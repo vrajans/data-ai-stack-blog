@@ -1,0 +1,45 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { TRACKS } from '../../config';
+import { getPosts, titleCase } from '../../lib/posts';
+
+export async function getStaticPaths() {
+  const posts = await getPosts();
+  const tags = new Set<string>([...TRACKS.map((t) => t.tag), ...posts.flatMap((p) => p.data.tags)]);
+  return [...tags].map((tag) => ({ params: { tag }, props: { posts: posts.filter((p) => p.data.tags.includes(tag)) } }));
+}
+const { tag } = Astro.params;
+const { posts } = Astro.props;
+const track = TRACKS.find((t) => t.tag === tag);
+const name = track?.title ?? titleCase(tag!);
+---
+
+<BaseLayout title={name} description={track?.blurb ?? `Articles tagged ${tag}.`}>
+  <section class="container">
+    <header class="page-head">
+      <a class="eyebrow" href="/tags">← All topics</a>
+      <h1>{name}</h1>
+      {track && <p>{track.blurb}</p>}
+    </header>
+    {
+      posts.length ? (
+        <div class="grid">{posts.map((p) => <PostCard post={p} />)}</div>
+      ) : (
+        <div class="empty card">
+          <p><strong>Coming soon.</strong> This track is on the publishing roadmap — subscribe via RSS to get notified when the first article lands.</p>
+          <a class="btn" href="/series/data-architecture">Start with Data Architecture →</a>
+        </div>
+      )
+    }
+  </section>
+</BaseLayout>
+
+<style>
+  .page-head { margin: 56px 0 36px; }
+  .eyebrow { color: var(--accent); font-weight: 650; font-size: 14px; }
+  h1 { font-size: clamp(34px, 5vw, 48px); margin: 8px 0 10px; }
+  .page-head p { color: var(--text-soft); margin: 0; }
+  .empty { padding: 28px; display: grid; gap: 14px; justify-items: start; }
+  .empty p { margin: 0; color: var(--text-soft); }
+</style>

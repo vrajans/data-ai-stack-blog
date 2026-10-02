@@ -1,0 +1,277 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import PostCard from '../components/PostCard.astro';
+import { SITE } from '../config';
+import { type Post, formatDate, readingTime, titleCase, relatedPosts } from '../lib/posts';
+import type { MarkdownHeading } from 'astro';
+
+interface Props { post: Post; headings: MarkdownHeading[]; all: Post[] }
+const { post, headings, all } = Astro.props;
+const { title, description, pubDate, updatedDate, tags, series, ogImage } = post.data;
+const mins = readingTime(post.body);
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+
+const seriesPosts = series
+  ? all.filter((p) => p.data.series === series).sort((a, b) => (a.data.seriesOrder ?? 0) - (b.data.seriesOrder ?? 0))
+  : [];
+const chrono = [...all].sort((a, b) => a.data.pubDate.valueOf() - b.data.pubDate.valueOf());
+const idx = chrono.findIndex((p) => p.id === post.id);
+const prev = chrono[idx - 1];
+const next = chrono[idx + 1];
+const related = relatedPosts(post, all);
+const url = new URL(`/blog/${post.id}`, Astro.site).href;
+const enc = encodeURIComponent;
+const g = SITE.giscus;
+---
+
+<BaseLayout title={title} description={description} image={ogImage} type="article" publishedTime={pubDate} modifiedTime={updatedDate} tags={tags}>
+  <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
+
+  <article class="container post" data-pagefind-body>
+    <header class="post-head">
+      <nav class="crumbs" aria-label="Breadcrumb" data-pagefind-ignore>
+        <a href="/blog">Articles</a>
+        {series && <><span>/</span><a href={`/series/${series}`}>{titleCase(series)} series</a></>}
+      </nav>
+      <h1>{title}</h1>
+      <p class="lede">{description}</p>
+      <div class="byline" data-pagefind-ignore>
+        <span class="avatar" aria-hidden="true">{SITE.author[0]}</span>
+        <div>
+          <strong>{SITE.author}</strong>
+          <div class="meta">
+            <time datetime={pubDate.toISOString()}>{formatDate(pubDate)}</time>
+            {updatedDate && <span>· Updated {formatDate(updatedDate)}</span>}
+            <span>· {mins} min read</span>
+          </div>
+        </div>
+      </div>
+      <div class="tags" data-pagefind-ignore>
+        {tags.map((t) => <a class="pill" href={`/tags/${t}`}>#{t}</a>)}
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="toc-wrap" data-pagefind-ignore>
+        {
+          toc.length > 0 && (
+            <nav class="toc" aria-label="On this page">
+              <p class="toc-title">On this page</p>
+              <ol>
+                {toc.map((h) => (
+                  <li class={`d${h.depth}`}>
+                    <a href={`#${h.slug}`} data-toc={h.slug}>{h.text}</a>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          )
+        }
+      </aside>
+
+      <div class="body">
+        {
+          seriesPosts.length > 1 && (
+            <details class="series-box" data-pagefind-ignore>
+              <summary>
+                <span>Part of the <strong>{titleCase(series!)}</strong> series</span>
+                <span class="count">{seriesPosts.findIndex((p) => p.id === post.id) + 1} / {seriesPosts.length}</span>
+              </summary>
+              <ol>
+                {seriesPosts.map((p) => (
+                  <li class:list={{ current: p.id === post.id }}>
+                    <a href={`/blog/${p.id}`}>{p.data.title}</a>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )
+        }
+
+        <div class="prose" id="article">
+          <slot />
+        </div>
+
+        <div class="share" data-pagefind-ignore>
+          <span>Share this article</span>
+          <a class="btn" target="_blank" rel="noopener" href={`https://www.linkedin.com/sharing/share-offsite/?url=${enc(url)}`}>LinkedIn</a>
+          <a class="btn" target="_blank" rel="noopener" href={`https://x.com/intent/post?url=${enc(url)}&text=${enc(title)}`}>X</a>
+          <a class="btn" target="_blank" rel="noopener" href={`https://news.ycombinator.com/submitlink?u=${enc(url)}&t=${enc(title)}`}>Hacker News</a>
+          <a class="btn" target="_blank" rel="noopener" href={`https://www.reddit.com/submit?url=${enc(url)}&title=${enc(title)}`}>Reddit</a>
+          <button class="btn" type="button" id="copy-link" data-url={url}>Copy link</button>
+        </div>
+
+        <div class="author-box" data-pagefind-ignore>
+          <span class="avatar lg" aria-hidden="true">{SITE.author[0]}</span>
+          <div>
+            <p class="k">Written by</p>
+            <p class="n">{SITE.author}</p>
+            <p class="b">{SITE.authorBio}</p>
+          </div>
+        </div>
+
+        <nav class="prevnext" aria-label="More articles" data-pagefind-ignore>
+          {prev ? <a class="card" href={`/blog/${prev.id}`}><span>← Previous</span><strong>{prev.data.title}</strong></a> : <span></span>}
+          {next ? <a class="card next" href={`/blog/${next.id}`}><span>Next →</span><strong>{next.data.title}</strong></a> : <span></span>}
+        </nav>
+
+        {
+          g.repo && g.repoId && g.category && g.categoryId && (
+            <section class="comments" data-pagefind-ignore>
+              <h2>Discussion</h2>
+              <script
+                src="https://giscus.app/client.js"
+                data-repo={g.repo}
+                data-repo-id={g.repoId}
+                data-category={g.category}
+                data-category-id={g.categoryId}
+                data-mapping="pathname"
+                data-reactions-enabled="1"
+                data-emit-metadata="0"
+                data-input-position="top"
+                data-theme="preferred_color_scheme"
+                data-lang="en"
+                data-loading="lazy"
+                crossorigin="anonymous"
+                async
+              />
+            </section>
+          )
+        }
+      </div>
+    </div>
+  </article>
+
+  <div class="container" data-pagefind-ignore>
+    {
+      related.length > 0 && (
+        <section>
+          <div class="section-title"><h2>Keep reading</h2><a href="/blog">All articles →</a></div>
+          <div class="grid">{related.map((p) => <PostCard post={p} />)}</div>
+        </section>
+      )
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 60; }
+  .progress span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .08s linear; }
+
+  .post-head { max-width: 820px; margin: 56px auto 40px; text-align: center; }
+  .crumbs { display: flex; gap: 8px; justify-content: center; font-size: 14px; color: var(--text-mute); font-weight: 550; }
+  .crumbs a:hover { color: var(--accent); }
+  h1 { font-size: clamp(34px, 5vw, 54px); line-height: 1.08; letter-spacing: -0.03em; margin: 18px 0 16px; font-weight: 800; }
+  .lede { font-size: clamp(18px, 2vw, 21px); color: var(--text-soft); line-height: 1.6; margin: 0 auto 26px; max-width: 700px; }
+  .byline { display: inline-flex; align-items: center; gap: 12px; text-align: left; }
+  .byline .meta { font-size: 14px; }
+  .avatar { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; font: 700 17px var(--font-display);
+    color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); flex: none; }
+  .avatar.lg { width: 58px; height: 58px; font-size: 22px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 20px; }
+
+  .layout { display: grid; grid-template-columns: 240px minmax(0, var(--prose)); gap: 64px; justify-content: center; }
+  .toc-wrap { position: relative; }
+  .toc { position: sticky; top: 96px; max-height: calc(100vh - 120px); overflow: auto; padding-right: 8px; }
+  .toc-title { font-size: 12.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-mute); font-weight: 650; margin: 0 0 10px; }
+  .toc ol { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--border); }
+  .toc li a { display: block; padding: 5px 0 5px 14px; margin-left: -1px; border-left: 2px solid transparent; font-size: 14px; line-height: 1.45; color: var(--text-mute); }
+  .toc li.d3 a { padding-left: 28px; font-size: 13.5px; }
+  .toc li a:hover { color: var(--text); }
+  .toc li a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+
+  .series-box { border: 1px solid var(--border); background: var(--bg-elev); border-radius: 12px; padding: 14px 18px; margin-bottom: 32px; }
+  .series-box summary { cursor: pointer; display: flex; justify-content: space-between; font-size: 15px; list-style: none; }
+  .series-box .count { color: var(--text-mute); font-variant-numeric: tabular-nums; }
+  .series-box ol { margin: 12px 0 4px; padding-left: 22px; font-size: 15px; }
+  .series-box li { margin: 6px 0; color: var(--text-soft); }
+  .series-box li.current a { color: var(--accent); font-weight: 650; }
+
+  .share { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 56px 0 0; padding-top: 28px; border-top: 1px solid var(--border); }
+  .share > span { font-weight: 650; margin-right: 8px; font-size: 15px; }
+  .share .btn { padding: 9px 13px; font-size: 13.5px; }
+  .author-box { display: flex; gap: 18px; align-items: center; margin: 36px 0; padding: 24px; border-radius: 16px; background: var(--bg-soft); border: 1px solid var(--border); }
+  .author-box p { margin: 0; }
+  .author-box .k { font-size: 12.5px; color: var(--text-mute); text-transform: uppercase; letter-spacing: .08em; }
+  .author-box .n { font: 700 19px var(--font-display); }
+  .author-box .b { color: var(--text-soft); font-size: 15px; line-height: 1.55; margin-top: 4px; }
+  .prevnext { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .prevnext a { padding: 18px 20px; display: grid; gap: 4px; }
+  .prevnext span { font-size: 13px; color: var(--text-mute); font-weight: 600; }
+  .prevnext strong { font-size: 15.5px; line-height: 1.4; }
+  .prevnext .next { text-align: right; }
+  .comments { margin-top: 56px; }
+
+  @media (max-width: 1060px) {
+    .layout { grid-template-columns: minmax(0, var(--prose)); }
+    .toc-wrap { display: none; }
+  }
+  @media (max-width: 640px) {
+    .post-head { margin-top: 36px; text-align: left; }
+    .crumbs, .tags { justify-content: flex-start; }
+    .prevnext { grid-template-columns: 1fr; }
+  }
+</style>
+
+<script>
+  // Reading progress
+  const bar = document.getElementById('progress-bar');
+  const article = document.getElementById('article');
+  const onScroll = () => {
+    if (!bar || !article) return;
+    const r = article.getBoundingClientRect();
+    const total = r.height - innerHeight * 0.6;
+    const pct = Math.min(100, Math.max(0, (-r.top / total) * 100));
+    bar.style.width = pct + '%';
+  };
+  addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  // Table-of-contents scroll-spy
+  const links = [...document.querySelectorAll<HTMLAnchorElement>('[data-toc]')];
+  const map = new Map(links.map((a) => [a.dataset.toc!, a]));
+  const obs = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          links.forEach((l) => l.classList.remove('active'));
+          map.get(e.target.id)?.classList.add('active');
+        }
+      });
+    },
+    { rootMargin: '-90px 0px -70% 0px' },
+  );
+  document.querySelectorAll('#article h2[id], #article h3[id]').forEach((h) => obs.observe(h));
+
+  // Enhance article: heading anchors, scrollable tables, external links, copy buttons
+  document.querySelectorAll<HTMLElement>('#article h2[id], #article h3[id]').forEach((h) => {
+    const a = document.createElement('a');
+    a.href = '#' + h.id; a.className = 'anchor'; a.textContent = '#'; a.setAttribute('aria-hidden', 'true'); a.tabIndex = -1;
+    h.appendChild(a);
+  });
+  document.querySelectorAll('#article table').forEach((t) => {
+    if (t.parentElement?.classList.contains('table-wrap')) return;
+    const w = document.createElement('div'); w.className = 'table-wrap';
+    t.replaceWith(w); w.appendChild(t);
+  });
+  document.querySelectorAll<HTMLAnchorElement>('#article a[href^="http"]').forEach((a) => {
+    if (a.host !== location.host) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+  });
+  document.querySelectorAll<HTMLPreElement>('#article pre').forEach((pre) => {
+    const b = document.createElement('button');
+    b.className = 'copy-btn'; b.type = 'button'; b.textContent = 'Copy';
+    b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(pre.querySelector('code')?.innerText ?? ''); b.textContent = 'Copied ✓'; }
+      catch { b.textContent = 'Press Ctrl+C'; }
+      setTimeout(() => (b.textContent = 'Copy'), 1600);
+    });
+    pre.appendChild(b);
+  });
+
+  // Copy link
+  const copy = document.getElementById('copy-link');
+  copy?.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(copy.dataset.url!); copy.textContent = 'Link copied ✓'; } catch {}
+    setTimeout(() => (copy.textContent = 'Copy link'), 1600);
+  });
+</script>

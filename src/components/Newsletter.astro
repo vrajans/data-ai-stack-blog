@@ -1,0 +1,46 @@
+---
+import { SITE } from '../config';
+const { compact = false } = Astro.props as { compact?: boolean };
+---
+
+<section class:list={['newsletter', { compact }]} aria-labelledby="nl-title">
+  <div>
+    <h2 id="nl-title">Get the next deep dive in your inbox</h2>
+    <p>New research on the data &amp; AI stack, roughly twice a month. No spam, unsubscribe anytime.</p>
+  </div>
+  {
+    SITE.newsletterAction ? (
+      <form action={SITE.newsletterAction} method="post" target="_blank" class="nl-form">
+        <label for="nl-email" class="sr-only">Email address</label>
+        <input id="nl-email" type="email" name="email" placeholder="you@company.com" required autocomplete="email" />
+        <button class="btn primary" type="submit">Subscribe</button>
+      </form>
+    ) : (
+      <div class="nl-form">
+        <a class="btn primary" href="/rss.xml">Follow via RSS</a>
+        <a class="btn" href={SITE.social.linkedin || '/about'} target="_blank" rel="noopener">Follow on LinkedIn</a>
+      </div>
+    )
+  }
+</section>
+
+<style>
+  .newsletter {
+    display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px; align-items: center;
+    padding: 30px 32px; border-radius: 18px; border: 1px solid var(--border);
+    background:
+      radial-gradient(600px 200px at 0% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
+      radial-gradient(500px 200px at 100% 100%, color-mix(in srgb, var(--accent-2) 14%, transparent), transparent 70%),
+      var(--bg-elev);
+  }
+  h2 { margin: 0 0 6px; font-size: 22px; }
+  p { margin: 0; color: var(--text-soft); font-size: 15px; }
+  .nl-form { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+  input {
+    flex: 1; min-width: 200px; font: 15px var(--font-sans); padding: 12px 14px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .compact { margin: 56px 0 0; }
+  @media (max-width: 760px) { .newsletter { grid-template-columns: 1fr; padding: 24px; } .nl-form { justify-content: flex-start; } }
+</style>

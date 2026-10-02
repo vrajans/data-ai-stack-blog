@@ -1,0 +1,49 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { TRACKS } from '../../config';
+import { getPosts } from '../../lib/posts';
+
+const posts = await getPosts();
+const counts = new Map<string, number>();
+posts.forEach((p) => p.data.tags.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1)));
+const all = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+---
+
+<BaseLayout title="Topics" description="Browse articles by topic across the data & AI stack.">
+  <section class="container">
+    <header class="page-head">
+      <p class="eyebrow">Topics</p>
+      <h1>Explore by topic</h1>
+      <p>The stack, layer by layer. Pick a track or any tag below.</p>
+    </header>
+    <div class="grid tracks">
+      {
+        TRACKS.map((t) => (
+          <a class="card track" href={`/tags/${t.tag}`}>
+            <span class="icon" aria-hidden="true">{t.icon}</span>
+            <h2>{t.title}</h2>
+            <p>{t.blurb}</p>
+            <span class="count">{counts.get(t.tag) ?? 0} articles</span>
+          </a>
+        ))
+      }
+    </div>
+    <h2 class="all-h">All tags</h2>
+    <div class="cloud">{all.map(([t, n]) => <a class="pill" href={`/tags/${t}`}>#{t} <span>{n}</span></a>)}</div>
+  </section>
+</BaseLayout>
+
+<style>
+  .page-head { margin: 56px 0 36px; }
+  .eyebrow { color: var(--accent); font-weight: 650; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; margin: 0; }
+  h1 { font-size: clamp(34px, 5vw, 48px); margin: 8px 0 10px; }
+  .page-head > p:not(.eyebrow) { color: var(--text-soft); margin: 0; }
+  .track { padding: 24px; display: grid; gap: 6px; }
+  .track h2 { margin: 6px 0 0; font-size: 20px; }
+  .track p { margin: 0; color: var(--text-soft); font-size: 15px; line-height: 1.55; }
+  .icon { font-size: 22px; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; background: var(--accent-soft); color: var(--accent); }
+  .count { font-size: 13px; color: var(--text-mute); font-weight: 600; margin-top: 6px; }
+  .all-h { margin: 56px 0 16px; font-size: 22px; }
+  .cloud { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cloud span { opacity: .65; }
+</style>

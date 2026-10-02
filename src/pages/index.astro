@@ -1,0 +1,166 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PostCard from '../components/PostCard.astro';
+import { SITE, TRACKS } from '../config';
+import { SERIES } from '../series';
+import { getPosts } from '../lib/posts';
+
+const posts = await getPosts();
+const featured = posts.find((p) => p.data.featured) ?? posts[0];
+const latest = posts.filter((p) => p.id !== featured?.id).slice(0, 6);
+const counts = new Map<string, number>();
+posts.forEach((p) => p.data.tags.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1)));
+const da = SERIES[0];
+const daPublished = new Set(posts.filter((p) => p.data.series === da.slug).map((p) => p.data.seriesOrder));
+
+const layers = [
+  { n: 'Consumption', d: 'BI · apps · AI agents' },
+  { n: 'Semantic & Serving', d: 'metrics · APIs · vectors' },
+  { n: 'Transformation', d: 'SQL · Spark · streaming' },
+  { n: 'Storage & Tables', d: 'object store · Iceberg' },
+  { n: 'Ingestion', d: 'batch · CDC · events' },
+  { n: 'Sources', d: 'apps · SaaS · IoT · docs' },
+];
+---
+
+<BaseLayout>
+  <section class="hero">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <p class="kicker"><span class="dot"></span> New series · Data Architecture</p>
+        <h1>Understand the <span class="grad">data &amp; AI stack</span>, end to end.</h1>
+        <p class="sub">{SITE.description}</p>
+        <div class="cta">
+          {featured && <a class="btn primary" href={`/blog/${featured.id}`}>Read the latest deep dive →</a>}
+          <a class="btn" href="/series/data-architecture">View the roadmap</a>
+        </div>
+        <p class="hint">Press <kbd>Ctrl</kbd> <kbd>K</kbd> to search every article.</p>
+      </div>
+
+      <div class="stack" aria-label="The layers of a modern data and AI stack" role="img">
+        {
+          layers.map((l, i) => (
+            <div class="layer" style={`--i:${i}`}>
+              <strong>{l.n}</strong>
+              <span>{l.d}</span>
+            </div>
+          ))
+        }
+        <div class="rail"><span>Governance · Security · Observability</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="container">
+    {
+      featured && (
+        <section>
+          <div class="section-title"><h2>Featured</h2></div>
+          <PostCard post={featured} variant="feature" />
+        </section>
+      )
+    }
+
+    {
+      latest.length > 0 && (
+        <section>
+          <div class="section-title"><h2>Latest articles</h2><a href="/blog">View all →</a></div>
+          <div class="grid">{latest.map((p) => <PostCard post={p} />)}</div>
+        </section>
+      )
+    }
+
+    <section>
+      <div class="section-title"><h2>Explore the stack</h2><a href="/tags">All topics →</a></div>
+      <div class="tracks">
+        {
+          TRACKS.map((t) => (
+            <a class="card track" href={`/tags/${t.tag}`}>
+              <span class="icon" aria-hidden="true">{t.icon}</span>
+              <div>
+                <h3>{t.title}</h3>
+                <p>{t.blurb}</p>
+              </div>
+              <span class="n">{counts.get(t.tag) ?? 0}</span>
+            </a>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="roadmap card">
+      <div class="rm-head">
+        <div>
+          <p class="kicker small">Series roadmap</p>
+          <h2>{da.title}: {da.parts.length} parts</h2>
+          <p>{da.description}</p>
+        </div>
+        <a class="btn" href={`/series/${da.slug}`}>Full roadmap →</a>
+      </div>
+      <ol>
+        {da.parts.map((p, i) => <li class:list={{ live: daPublished.has(i + 1) }}><span>{i + 1}</span>{p.title}</li>)}
+      </ol>
+    </section>
+
+  </div>
+</BaseLayout>
+
+<style>
+  .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--border);
+    background:
+      radial-gradient(900px 420px at 10% -10%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 65%),
+      radial-gradient(700px 400px at 100% 10%, color-mix(in srgb, var(--accent-2) 14%, transparent), transparent 65%);
+  }
+  .hero::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 44px 44px; mask-image: radial-gradient(ellipse at 70% 40%, #000 10%, transparent 70%); }
+  .hero-grid { position: relative; z-index: 1; display: grid; grid-template-columns: 1.15fr 1fr; gap: 56px; align-items: center; padding-top: 84px; padding-bottom: 84px; }
+  .kicker { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 650; color: var(--accent-ink);
+    background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); padding: 5px 12px; border-radius: 999px; margin: 0; }
+  .kicker.small { padding: 3px 10px; font-size: 12.5px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 var(--accent); animation: pulse 2s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+  h1 { font-size: clamp(40px, 6vw, 68px); line-height: 1.02; letter-spacing: -0.035em; margin: 22px 0 20px; font-weight: 800; }
+  .grad { background: linear-gradient(100deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { font-size: 19px; color: var(--text-soft); max-width: 560px; margin: 0 0 30px; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .hint { color: var(--text-mute); font-size: 13.5px; margin: 18px 0 0; }
+  kbd { font: 11.5px var(--font-mono); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; background: var(--bg-elev); }
+
+  .stack { position: relative; display: grid; gap: 10px; padding-right: 52px; }
+  .layer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 15px 20px; border-radius: 12px;
+    background: var(--bg-elev); border: 1px solid var(--border); box-shadow: var(--shadow);
+    transform: translateX(calc(var(--i) * -6px)); animation: rise .6s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i) * 70ms); }
+  .layer strong { font: 700 15.5px var(--font-display); }
+  .layer span { font: 500 12.5px var(--font-mono); color: var(--text-mute); }
+  .layer:first-child { border-color: color-mix(in srgb, var(--accent-2) 50%, var(--border)); }
+  .layer:nth-child(4) { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+  .rail { position: absolute; right: 0; top: 0; bottom: 0; width: 40px; border-radius: 12px; display: grid; place-items: center;
+    background: linear-gradient(180deg, var(--accent-2), var(--accent)); color: #fff; }
+  .rail span { writing-mode: vertical-rl; transform: rotate(180deg); font: 650 12px var(--font-sans); letter-spacing: .06em; white-space: nowrap; }
+  @keyframes rise { from { opacity: 0; transform: translate(calc(var(--i) * -6px), 14px); } }
+
+  .tracks { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+  .track { display: grid; grid-template-columns: 46px 1fr auto; gap: 16px; align-items: center; padding: 20px 22px; }
+  .icon { font-size: 21px; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 12px; background: var(--accent-soft); color: var(--accent); }
+  .track h3 { margin: 0 0 2px; font-size: 17px; }
+  .track p { margin: 0; color: var(--text-soft); font-size: 14.5px; line-height: 1.5; }
+  .track .n { font: 700 13px var(--font-mono); color: var(--text-mute); }
+
+  .roadmap { margin-top: 64px; padding: 32px; }
+  .roadmap:hover { transform: none; }
+  .rm-head { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+  .rm-head h2 { margin: 12px 0 6px; font-size: 26px; }
+  .rm-head p { margin: 0; color: var(--text-soft); max-width: 640px; }
+  .roadmap ol { list-style: none; padding: 0; margin: 26px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px 28px; }
+  .roadmap li { display: flex; gap: 12px; align-items: center; font-size: 15px; color: var(--text-soft); padding: 8px 0; border-bottom: 1px dashed var(--border); }
+  .roadmap li span { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 700 12px var(--font-display); background: var(--bg-soft); color: var(--text-mute); }
+  .roadmap li.live { color: var(--text); font-weight: 600; }
+  .roadmap li.live span { background: var(--accent); color: #fff; }
+
+  @media (max-width: 900px) {
+    .hero-grid { grid-template-columns: 1fr; padding-top: 56px; padding-bottom: 56px; gap: 40px; }
+    .tracks { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 480px) { .roadmap ol { grid-template-columns: 1fr; } .roadmap { padding: 22px; } .layer span { display: none; } }
+</style>

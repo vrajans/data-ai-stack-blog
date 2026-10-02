@@ -1,0 +1,33 @@
+---
+import Figure from '../mdx/Figure.astro';
+const eras = [
+  { y: '1990s', t: 'Enterprise DW', d: ['Inmon & Kimball', 'on-prem MPP appliances', 'schema-on-write'], fix: 'One trusted version of the truth', pain: 'Rigid, costly, structured only', cls: 'box' },
+  { y: '2006–15', t: 'Hadoop data lake', d: ['HDFS + MapReduce/Hive', 'any data, cheap storage', 'schema-on-read'], fix: 'Scale & variety at low cost', pain: '“Data swamp”, no ACID, hard ops', cls: 'box' },
+  { y: '2012–20', t: 'Cloud warehouse', d: ['Snowflake · BigQuery', 'storage/compute split', 'elastic managed SQL'], fix: 'Elastic, managed, fast SQL', pain: 'Proprietary storage, ML awkward', cls: 'box-b' },
+  { y: '2020–', t: 'Lakehouse', d: ['Delta · Iceberg · Hudi', 'ACID on object storage', 'BI + ML on one copy'], fix: 'Warehouse reliability on open files', pain: 'Catalog & ops complexity', cls: 'box-a' },
+  { y: '2024–', t: 'Open, AI-ready', d: ['Iceberg REST catalogs', 'multi-engine by default', 'unstructured + vectors'], fix: 'Interop + context for AI', pain: 'Governance for agents', cls: 'box-a' },
+];
+const W = 176, G = 14, X0 = 12;
+---
+
+<Figure label="Timeline of data architecture generations from the 1990s enterprise data warehouse to the 2024+ open, AI-ready lakehouse." caption="Figure 2 — Five generations of data architecture. Each one solved the previous generation's biggest pain — and introduced a new one.">
+  <svg viewBox="0 0 966 330" xmlns="http://www.w3.org/2000/svg">
+    <line x1="12" y1="44" x2="954" y2="44" class="lna"></line>
+    {eras.map((e, i) => {
+      const x = X0 + i * (W + G);
+      return (
+        <g>
+          <circle cx={x + 16} cy="44" r="6" fill="var(--accent)"></circle>
+          <text x={x + 8} y="26" class="t ta" style="font-size:13px">{e.y}</text>
+          <rect x={x} y="62" width={W} height="256" rx="12" class={e.cls}></rect>
+          <text x={x + 14} y="92" class="t" style="font-size:15.5px">{e.t}</text>
+          {e.d.map((d, j) => <text x={x + 14} y={118 + j * 20} class="s" style="font-size:12px">• {d}</text>)}
+          <text x={x + 14} y="200" class="h ta">SOLVED</text>
+          <foreignObject x={x + 10} y="206" width={W - 20} height="44"><div style="font:600 12.5px/1.35 var(--font-sans);color:var(--text)">{e.fix}</div></foreignObject>
+          <text x={x + 14} y="266" class="h" style="fill:var(--warn)">NEW PAIN</text>
+          <foreignObject x={x + 10} y="272" width={W - 20} height="44"><div style="font:500 12.5px/1.35 var(--font-sans);color:var(--text-soft)">{e.pain}</div></foreignObject>
+        </g>
+      );
+    })}
+  </svg>
+</Figure>

@@ -1,0 +1,35 @@
+---
+import Figure from '../mdx/Figure.astro';
+const stages = [
+  { x: 190, t: 'Bronze', s: 'raw, as landed', b: ['append-only, immutable', 'raw schema + load metadata', 'replayable history'], color: '#b0773c' },
+  { x: 430, t: 'Silver', s: 'cleaned, conformed', b: ['deduplicated & typed', 'conformed keys & entities', 'quality checks enforced'], color: '#8a94a6' },
+  { x: 670, t: 'Gold', s: 'business-ready', b: ['facts, dimensions, metrics', 'aggregates & data products', 'SLAs & certified owners'], color: '#c9a227' },
+];
+---
+
+<Figure label="Medallion architecture: sources flow into bronze raw data, then silver cleaned data, then gold business-ready data consumed by BI, ML and AI." caption="Figure 4 — The medallion (multi-hop) pattern. Quality and business meaning increase left to right; so does the cost of getting it wrong.">
+  <svg viewBox="0 0 960 250" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="md-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow-a"></path></marker></defs>
+    <rect x="16" y="70" width="140" height="110" rx="12" class="box"></rect>
+    <text x="86" y="112" text-anchor="middle" class="t">Sources</text>
+    <text x="86" y="134" text-anchor="middle" class="s">DBs · SaaS · events</text>
+    <text x="86" y="152" text-anchor="middle" class="s">files · docs</text>
+    {stages.map((st) => (
+      <g>
+        <rect x={st.x} y="30" width="208" height="190" rx="14" class="box"></rect>
+        <rect x={st.x} y="30" width="208" height="8" rx="4" fill={st.color}></rect>
+        <text x={st.x + 18} y="70" class="t" style="font-size:18px">{st.t}</text>
+        <text x={st.x + 18} y="92" class="s" style="font-size:12.5px">{st.s}</text>
+        {st.b.map((b, j) => <text x={st.x + 18} y={126 + j * 26} class="s" style="font-size:12.5px;fill:var(--text-soft)">✓ {b}</text>)}
+      </g>
+    ))}
+    <line x1="158" y1="125" x2="186" y2="125" class="lna" marker-end="url(#md-arr)"></line>
+    <line x1="400" y1="125" x2="426" y2="125" class="lna" marker-end="url(#md-arr)"></line>
+    <line x1="640" y1="125" x2="666" y2="125" class="lna" marker-end="url(#md-arr)"></line>
+    <line x1="880" y1="125" x2="904" y2="125" class="lna" marker-end="url(#md-arr)"></line>
+    <text x="930" y="100" text-anchor="middle" class="s" style="font-size:12.5px;fill:var(--text)">BI</text>
+    <text x="930" y="130" text-anchor="middle" class="s" style="font-size:12.5px;fill:var(--text)">ML</text>
+    <text x="930" y="160" text-anchor="middle" class="s" style="font-size:12.5px;fill:var(--text)">AI</text>
+    <text x="480" y="244" text-anchor="middle" class="s">increasing quality, structure and business meaning →</text>
+  </svg>
+</Figure>
