@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 export const SITE = {
   // After your first deploy, replace with your real URL (or custom domain)
-  url: 'https://data-ai-stack.pages.dev',
+  url: 'https://data-ai-stack.varatha-51.workers.dev',
   title: 'The Data & AI Stack',
   tagline: 'Deep, practical research on the end-to-end data & AI stack.',
   description:
@@ -14,8 +14,8 @@ export const SITE = {
   locale: 'en-US',
   // Social links (leave '' to hide)
   social: {
-    github: 'https://github.com/',
-    linkedin: 'https://www.linkedin.com/',
+    github: 'https://github.com/vrajans',
+    linkedin: 'https://www.linkedin.com/in/varatharajan-subramanian-b1651525/',
     x: '',
   },
   // Free, privacy-friendly analytics: Cloudflare dashboard → Analytics & Logs → Web Analytics → add site → copy token
