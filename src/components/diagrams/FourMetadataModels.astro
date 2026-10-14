@@ -1,0 +1,32 @@
+---
+import Figure from '../mdx/Figure.astro';
+const cols = [
+  { t: 'Apache Iceberg', m: 'Tree of metadata files', cls: 'box-a', lines: ['metadata.json', '→ manifest list', '→ manifests', '→ data + delete files'], k: 'Commit = swap one pointer in the catalog' },
+  { t: 'Delta Lake', m: 'Ordered transaction log', cls: 'box-b', lines: ['_delta_log/', '000…041.json', '000…040.checkpoint', '→ add / remove actions'], k: 'Commit = write next log entry atomically' },
+  { t: 'Apache Hudi', m: 'Timeline + indexes', cls: 'box', lines: ['.hoodie/ timeline', 'file groups & slices', 'metadata table', '→ record-level index'], k: 'Commit = complete an instant on the timeline' },
+  { t: 'DuckLake', m: 'SQL database catalog', cls: 'box-w', lines: ['Postgres / MySQL /', 'SQLite / DuckDB', 'tables: snapshots, files,', 'stats, schemas'], k: 'Commit = an ordinary SQL transaction' },
+];
+const W = 222, G = 14, X0 = 12;
+---
+
+<Figure label="Four approaches to tracking table state: Iceberg uses a tree of metadata files, Delta an ordered transaction log, Hudi a timeline with indexes, and DuckLake a SQL database. All store data as Parquet files on object storage." caption="Figure 1 — Same goal, four designs. Every format stores data as Parquet on object storage; they differ in how they record which files make up the table right now.">
+  <svg viewBox="0 0 960 380" xmlns="http://www.w3.org/2000/svg">
+    {cols.map((c, i) => {
+      const x = X0 + i * (W + G);
+      return (
+        <g>
+          <rect x={x} y="10" width={W} height="250" rx="12" class={c.cls}></rect>
+          <text x={x + 16} y="40" class="t" style="font-size:16px">{c.t}</text>
+          <text x={x + 16} y="60" class="s" style="font-size:12.5px">{c.m}</text>
+          <rect x={x + 14} y="76" width={W - 28} height="118" rx="8" class="box" style="fill:var(--bg-elev)"></rect>
+          {c.lines.map((l, j) => <text x={x + 26} y={100 + j * 25} class="s" style="font-family:var(--font-mono);font-size:12px;fill:var(--text)">{l}</text>)}
+          <foreignObject x={x + 12} y="204" width={W - 24} height="52"><div style="font:600 12.5px/1.35 var(--font-sans);color:var(--text-soft)">{c.k}</div></foreignObject>
+          <line x1={x + W / 2} y1="262" x2={x + W / 2} y2="300" class="ln dash"></line>
+        </g>
+      );
+    })}
+    <rect x="12" y="302" width="930" height="64" rx="12" class="box"></rect>
+    <text x="477" y="330" text-anchor="middle" class="t">Data files: Apache Parquet on object storage</text>
+    <text x="477" y="350" text-anchor="middle" class="s">S3 · ADLS · GCS — immutable files, never edited in place</text>
+  </svg>
+</Figure>

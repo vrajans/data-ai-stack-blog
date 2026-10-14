@@ -1,0 +1,341 @@
+---
+title: 'Open Table Formats Deep Dive: Iceberg, Delta, Hudi & DuckLake'
+description: 'How Iceberg, Delta Lake, Hudi and DuckLake turn Parquet files into reliable tables — metadata, commits, deletes, maintenance — and how to choose in 2026.'
+pubDate: 2026-10-06
+tags: [data-architecture, lakehouse, apache-iceberg, delta-lake, apache-hudi, ducklake]
+series: data-architecture
+seriesOrder: 3
+ogImage: /og/open-table-formats-deep-dive.png
+---
+
+import Callout from '../../components/mdx/Callout.astro';
+import FourMetadataModels from '../../components/diagrams/FourMetadataModels.astro';
+import IcebergTree from '../../components/diagrams/IcebergTree.astro';
+import DeltaLog from '../../components/diagrams/DeltaLog.astro';
+import CowMor from '../../components/diagrams/CowMor.astro';
+
+If the lakehouse is the default architecture of 2026, the **open table format** is the component that makes it work. It's the thin layer of metadata that turns a pile of immutable Parquet files into something that behaves like a database table: transactions, consistent reads, schema changes, updates and deletes, time travel.
+
+Most people never look at it directly — they write SQL and the engine does the rest. But the table format decides how fast your queries plan, how much your updates cost, how many engines can safely share data, and how much maintenance you'll be running at 2 a.m. Understanding how it works is one of the highest-leverage things a data architect can learn.
+
+This is Part 3 of the [Data Architecture series](/series/data-architecture). [Part 1](/blog/data-architecture-complete-guide) introduced the lakehouse stack; [Part 2](/blog/warehouse-vs-lake-vs-lakehouse) explained why every major platform now reads and writes open formats. Here we open the box.
+
+<Callout type="key" title="The short answer">
+**Apache Iceberg** is the broadest cross-engine standard and the safest default for new platforms. **Delta Lake** is the natural choice if you're Databricks- or Spark-centric, and can publish Iceberg-compatible metadata. **Apache Hudi** shines for upsert-heavy, CDC-style ingestion. **DuckLake** is a deliberately simple design — metadata in a SQL database — that's compelling for small and mid-size, DuckDB-centric teams. Whichever you pick, **plan for table maintenance from day one**.
+</Callout>
+
+## The problem: files are not tables
+
+Object storage is wonderful — cheap, durable, effectively infinite — but it only knows about objects. A table stored as "a folder of Parquet files" breaks in predictable ways:
+
+1. **No atomic commits.** A job that writes 200 files can fail after 120. Readers see a half-written table.
+2. **No isolation.** A query running while a writer replaces files may read some old files and some new ones.
+3. **No cheap updates or deletes.** Parquet files are immutable. Changing one row means rewriting the whole file — and finding which files contain the row means scanning them.
+4. **Slow planning.** Listing millions of objects to discover which files make up a table is slow and, on some stores, expensive.
+5. **Fragile schemas.** Renaming or reordering a column can silently mis-map data across files written at different times.
+6. **No history.** You can't ask "what did this table contain last Tuesday?" or roll back a bad load.
+
+A table format fixes all six with one idea: **keep an authoritative, versioned list of exactly which files make up the table at each point in time, and change that list atomically.** Data files are never edited; every change writes new files plus new metadata, and a commit makes the new version visible all at once.
+
+### The contract every format provides
+
+Despite different designs, all modern table formats give you broadly the same guarantees:
+
+| Capability | What it means in practice |
+|---|---|
+| **ACID commits** | A write is all-or-nothing; concurrent writers use optimistic concurrency and conflicting commits retry or fail cleanly |
+| **Snapshot isolation** | Every query reads one consistent version of the table, no matter what writers are doing |
+| **Schema evolution** | Add, drop, rename and (safely) widen columns without rewriting data |
+| **Partitioning & data skipping** | File-level statistics (min/max, null counts) let engines skip files that can't match a filter |
+| **Row-level changes** | `UPDATE`, `DELETE` and `MERGE` without rewriting the whole table |
+| **Time travel & rollback** | Query or restore earlier versions, within a retention window |
+
+Where they differ is *how* they record table state — and that design choice drives their strengths and trade-offs.
+
+<FourMetadataModels />
+
+## Apache Iceberg: a tree of metadata
+
+Iceberg was created at Netflix to fix the correctness and performance problems of Hive tables at petabyte scale, open-sourced in 2018 and graduated to a top-level Apache Software Foundation project in 2020. Today it's the format with the broadest support across engines and vendors.
+
+### How an Iceberg table is structured
+
+An Iceberg table is a tree of immutable files:
+
+- **Table metadata file** (`metadata.json`) — the table's schemas, partition specs, sort orders, properties and the list of **snapshots**, plus a pointer to the current one.
+- **Manifest list** — one per snapshot; lists the manifests that make up that snapshot, with partition-range summaries for each.
+- **Manifests** — list individual data and delete files, with per-file partition values and column statistics (value counts, null counts, lower and upper bounds).
+- **Data files** — Parquet (most common), ORC or Avro.
+- **Delete files** — record row-level deletes without rewriting data (more on these below).
+
+<IcebergTree />
+
+Two properties of this design matter a lot.
+
+**Commits are a single pointer swap.** The catalog stores which `metadata.json` is current. A writer prepares new data files, manifests and a new metadata file, then asks the catalog to atomically swap the pointer from the version it started with to its new version. If another writer got there first, the swap fails, and the writer re-validates against the new state and retries. That's why **the catalog is part of Iceberg's correctness** — and why Part 4 of this series is entirely about catalogs.
+
+**Planning prunes without listing files.** To answer `WHERE order_date = '2026-10-01'`, an engine reads the manifest list, skips manifests whose partition ranges can't match, then reads only the relevant manifests and skips files whose column bounds can't match. No directory listing, and often only a tiny fraction of data files are ever opened.
+
+### Hidden partitioning and partition evolution
+
+In Hive-style tables, users had to know the physical partition columns (`WHERE dt = '2026-10-01'` rather than filtering on the timestamp) or queries scanned everything. Iceberg instead defines partitions as **transforms of real columns** — `day(ts)`, `month(ts)`, `bucket(16, customer_id)`, `truncate(10, sku)` — and applies them automatically. Users filter on `ts`; Iceberg prunes on the derived partition.
+
+Because the partition spec lives in metadata, you can also **change it later without rewriting old data**. Data written before the change keeps the old layout; new data uses the new one; queries plan across both.
+
+```sql
+-- Spark SQL with the Iceberg extensions
+CREATE TABLE lake.sales.orders (
+  order_id     BIGINT,
+  customer_id  BIGINT,
+  amount       DECIMAL(12,2),
+  order_ts     TIMESTAMP
+) USING iceberg
+PARTITIONED BY (day(order_ts));
+
+-- Volume grew: add a bucket partition for new data only
+ALTER TABLE lake.sales.orders ADD PARTITION FIELD bucket(16, customer_id);
+
+-- Users never mention partitions
+SELECT sum(amount) FROM lake.sales.orders
+WHERE order_ts >= TIMESTAMP '2026-10-01 00:00:00';
+```
+
+### Schema evolution by ID, not by name
+
+Iceberg tracks every column by a unique **field ID**, not by its name or position. Renaming `amount` to `net_amount` is a metadata-only change, and old files still map correctly. Dropping a column and later adding a new one with the same name can't accidentally resurrect old data — the new column gets a new ID.
+
+### Row-level deletes: from delete files to deletion vectors
+
+Iceberg's format **version 2** introduced row-level deletes without rewriting data:
+
+- **Position deletes** — "row 4,182 of file X is deleted."
+- **Equality deletes** — "any row where `order_id = 42` is deleted" — cheap to write from streaming jobs that don't know file positions, but more expensive to apply at read time.
+
+Format **version 3** replaces position delete files with **deletion vectors**: compact bitmaps (stored in Iceberg's Puffin file format) that mark deleted row positions, with at most one per data file. They're far cheaper to read and maintain than piles of small delete files — and their encoding was designed to be compatible with Delta Lake's deletion vectors, which helps interoperability.
+
+### What's in Iceberg v3
+
+The v3 specification was ratified in 2025, and through 2026 support became generally available across major platforms (Part 2 covered the vendor timeline). Its headline additions:
+
+- **Deletion vectors** — as above.
+- **Row lineage** — stable row IDs and last-updated sequence numbers, enabling efficient change data capture and incremental processing.
+- **`VARIANT` type** — semi-structured data (JSON-like) stored efficiently, with shredding of common fields into columns.
+- **Geospatial types** — `geometry` and `geography`.
+- **Default column values** — add a column with a default without rewriting data.
+- **Nanosecond timestamps** and other type improvements.
+
+The Java reference implementation's 1.11 release (May 2026) declared v3 features such as deletion vectors, `VARIANT` and geospatial types production-ready.
+
+### What's coming: Iceberg v4
+
+Work on the next format version is well under way but **not finished** as of this writing. Some pieces have been ratified — for example **relative paths** (so tables can be moved or replicated without rewriting metadata) and a new structured representation for **column statistics**. Bigger changes, such as **single-file commits** and an **adaptive metadata tree** that reduce the number of files written per commit, are still being designed. The direction is clear: cheaper commits, faster planning for very large and very wide tables, and better support for high-frequency writes.
+
+<Callout type="note" title="Where Iceberg is weaker">
+Iceberg's correctness depends on its catalog, so catalog choice and operations are a real part of running it. Very high-frequency small commits create lots of small metadata and data files that need compaction — the main motivation behind several v4 proposals.
+</Callout>
+
+## Delta Lake: an ordered transaction log
+
+Delta Lake was created at Databricks, open-sourced in 2019 and is hosted by the Linux Foundation. It's the native format of the Databricks platform and is deeply integrated with Apache Spark, with growing support elsewhere through **Delta Kernel** (a library for building connectors) and **delta-rs** (a Rust implementation with Python bindings).
+
+### How a Delta table is structured
+
+Every Delta table has a `_delta_log/` directory containing an ordered sequence of commit files: `00000000000000000000.json`, `…001.json` and so on. Each commit is a list of **actions**:
+
+- `add` and `remove` — data files entering or leaving the table, with per-file statistics;
+- `metaData` — schema, partition columns, configuration;
+- `protocol` — the reader/writer versions and **table features** required to read or write the table;
+- `commitInfo` — who did what, when.
+
+The current state of the table is the result of replaying all actions in order. To keep that cheap, Delta periodically writes a **checkpoint** — a Parquet file summarizing the full state — so readers start from the latest checkpoint and replay only the commits after it.
+
+<DeltaLog />
+
+**Commits** work by creating the next numbered log file atomically: if two writers both try to create `…043.json`, only one succeeds; the other checks for logical conflicts and retries. Historically this required "put-if-absent" semantics that not every object store offered (multi-writer setups on S3 needed an extra coordination service), which is one reason Delta has been moving toward **catalog-managed tables**, where commits are coordinated through the catalog. Delta 4.1 (March 2026) brought full production support for catalog-managed tables in Delta Spark and Delta Kernel.
+
+### Features worth knowing
+
+- **Table features** — instead of bumping a single version number, the protocol lists named features a table uses (deletion vectors, column mapping, type widening…), so readers know exactly what they must support.
+- **Deletion vectors** — mark deleted rows in a bitmap instead of rewriting files, making `DELETE`, `UPDATE` and `MERGE` much cheaper.
+- **Liquid clustering** — replaces rigid partitioning and Z-ordering with clustering keys that can be changed without rewriting the whole table.
+- **`VARIANT` type** and **type widening** — semi-structured data, and safe changes such as `INT` to `BIGINT`.
+- **UniForm** — writes Iceberg (and Hudi) metadata alongside the Delta log, so Iceberg clients can read Delta tables without copying data.
+
+```sql
+-- Spark SQL / Databricks SQL
+DESCRIBE HISTORY sales.orders;                    -- the transaction log as a table
+SELECT * FROM sales.orders VERSION AS OF 41;      -- time travel by version
+RESTORE TABLE sales.orders TO VERSION AS OF 41;   -- roll back a bad load
+
+OPTIMIZE sales.orders;                            -- compact small files
+VACUUM sales.orders RETAIN 168 HOURS;             -- delete unreferenced files (7 days)
+```
+
+<Callout type="note" title="Where Delta is weaker">
+Outside the Spark/Databricks ecosystem, write support has historically been less complete than Iceberg's — though Delta Kernel, delta-rs and UniForm have narrowed the gap. Roadmap and release cadence are closely tied to one vendor, even under Linux Foundation governance.
+</Callout>
+
+## Apache Hudi: a database-like timeline with indexes
+
+Apache Hudi ("Hadoop Upserts Deletes and Incrementals") was created at Uber in 2016 to make near-real-time **upserts** on the data lake practical — for example, applying a stream of database changes to a huge table every few minutes. It's an Apache top-level project.
+
+### How a Hudi table is structured
+
+- **Timeline** — the `.hoodie/` directory records every action on the table (commits, delta commits, compactions, clustering, cleaning) as *instants* that move through requested → inflight → completed states. Hudi 1.0 (December 2024) reorganized the timeline as an LSM tree so history scales without slowing down.
+- **File groups and file slices** — each record key belongs to a **file group**; each version of a file group is a **file slice** made of a base file (Parquet) plus, in merge-on-read tables, **log files** containing recent changes.
+- **Metadata table** — an internal table holding file listings, column statistics and **indexes**.
+
+### Indexes are Hudi's superpower
+
+Hudi maintains indexes that map **record keys to file groups** — so an upsert of 10,000 changed rows knows exactly which files to touch without scanning the table. It supports a record-level index, bloom filters, secondary indexes and expression (functional) indexes. Hudi 1.1 (November 2025) added partitioned record and bucket indexes, a storage-based lock provider, Spark 4 and Flink 2 support, and a **pluggable table-format framework** aimed at working alongside Iceberg and Delta.
+
+### Two table types
+
+Hudi makes the write/read trade-off explicit with two table types: **copy-on-write** (rewrite files on update; fastest reads) and **merge-on-read** (append changes to log files; fastest writes, merged at read time and compacted in the background). Hudi 1.0 also introduced **non-blocking concurrency control**, so multiple writers — for example a streaming ingester and a batch backfill — can write to the same table without failing each other.
+
+<Callout type="note" title="Where Hudi is weaker">
+More concepts and configuration to learn than Iceberg or Delta, and narrower engine support for writes outside Spark and Flink. Commercial momentum is concentrated in a smaller ecosystem. Many teams use Hudi as a write-optimized ingestion layer and expose tables to readers via Iceberg compatibility (for example through Apache XTable).
+</Callout>
+
+## DuckLake: put the metadata in a database
+
+DuckLake, from the creators of DuckDB, takes a deliberately different approach. Data still lives as **Parquet files on object storage**, but *all* metadata — schemas, snapshots, file lists, statistics, transactions — lives in an ordinary **SQL database**: PostgreSQL, MySQL, SQLite or DuckDB itself.
+
+The argument is simple: databases are already very good at small, frequent, transactional updates — exactly what file-based metadata struggles with. A commit is just a SQL transaction; there are no manifest or log files to compact; and many small changes can even be **inlined** into the catalog database instead of creating tiny Parquet files.
+
+The DuckLake **v1.0 specification** was released in April 2026, with the reference implementation shipping as a DuckDB extension. Features in 1.0 include data inlining for small inserts, updates and deletes, sorted tables, bucket partitioning and deletion vectors compatible with Iceberg's. Beyond DuckDB, engines such as Spark, Trino and Apache DataFusion have DuckLake connectors, and MotherDuck offers a hosted service.
+
+```sql
+-- DuckDB
+INSTALL ducklake;
+ATTACH 'ducklake:metadata.ducklake' AS lake (DATA_PATH 's3://my-bucket/lake/');
+USE lake;
+CREATE TABLE orders AS SELECT * FROM read_parquet('s3://raw/orders/*.parquet');
+```
+
+DuckLake is young compared with the other three, and its ecosystem is centred on DuckDB and MotherDuck. But for small and mid-size teams that want a simple, fast, low-ops lakehouse, it's a serious option — and its design has influenced the wider conversation (Iceberg v4's push toward fewer metadata files addresses some of the same pain).
+
+### An honorable mention: Apache Paimon
+
+**Apache Paimon** (formerly Flink Table Store, a top-level Apache project since 2024) organizes primary-key tables as an LSM tree and is built for **streaming-first** lakehouses, especially with Apache Flink. It offers an Iceberg-compatibility mode so other engines can read its tables. If your platform is Flink-centric with heavy streaming upserts, it belongs on your shortlist.
+
+## Copy-on-write (COW) vs merge-on-read (MOR)
+
+Every format faces the same trade-off when rows change, because data files can't be edited in place.
+
+<CowMor />
+
+| | Copy-on-write | Merge-on-read |
+|---|---|---|
+| **On update/delete** | Rewrite every affected data file | Write small delete markers (or deletion vectors) plus new rows |
+| **Write cost** | High for small, scattered changes | Low |
+| **Read cost** | Lowest | Higher until compaction |
+| **Best for** | Read-heavy tables, batch updates | Frequent updates, CDC, streaming upserts, GDPR deletes |
+| **Iceberg** | Default for many engines | v2 position/equality deletes; v3 deletion vectors |
+| **Delta** | Default without deletion vectors | Deletion vectors |
+| **Hudi** | Copy-on-write table type | Merge-on-read table type with log files |
+
+Most engines let you choose per table (and sometimes per operation). A good default: **copy-on-write for large, mostly-append analytical tables; merge-on-read with scheduled compaction for tables receiving frequent row-level changes.**
+
+## Interoperability: you may not have to choose just one
+
+The formats increasingly speak to each other:
+
+- **Delta UniForm** writes Iceberg metadata for Delta tables, so Iceberg readers can query them.
+- **Apache XTable** (incubating) translates table metadata between Hudi, Delta and Iceberg without copying data.
+- **Paimon and Hudi** offer Iceberg-compatible metadata modes.
+- **Catalogs** such as Apache Polaris, Unity Catalog and Google's Iceberg REST catalog can govern multiple formats side by side and federate with each other.
+- **Microsoft Fabric's OneLake** virtualizes Delta tables as Iceberg and vice versa.
+
+<Callout type="warn" title="Interop is not equivalence">
+Translated metadata usually gives *readers* access; the original format remains the one you *write* with. Newer features (for example, the latest delete encodings or types) may not translate, and there's a lag between a write and the translated metadata. Pick one primary format per table and treat the others as read paths.
+</Callout>
+
+There's also a longer-term convergence story: a proposal discussed in the community would have a future Delta version adopt Iceberg v4's metadata tree as its native content metadata. Treat that as a direction of travel, not a plan to build on.
+
+## Head-to-head comparison
+
+| | Apache Iceberg | Delta Lake | Apache Hudi | DuckLake |
+|---|---|---|---|---|
+| **Origin / governance** | Netflix → Apache (ASF) | Databricks → Linux Foundation | Uber → Apache (ASF) | DuckDB team (MIT licence) |
+| **Metadata model** | Tree of metadata files + catalog pointer | Ordered JSON log + Parquet checkpoints | Timeline + metadata table + indexes | Tables in a SQL database |
+| **Commit mechanism** | Atomic swap in the catalog | Atomic creation of next log entry, or catalog-managed | Instant completion on the timeline with locking/NBCC | SQL transaction |
+| **Partitioning** | Hidden partitions + partition evolution | Partitions or liquid clustering | Partitions + bucket indexes | Partitions incl. bucketing |
+| **Row-level changes** | Deletion vectors (v3), equality deletes | Deletion vectors | COW / MOR table types + indexes | Deletion vectors + data inlining |
+| **Engine support (2026)** | Broadest: Spark, Flink, Trino, Snowflake, BigQuery, Redshift, Databricks, DuckDB, … | Spark/Databricks native; others via Kernel, delta-rs, UniForm | Spark & Flink strongest; others read via sync/XTable | DuckDB native; growing connectors |
+| **Sweet spot** | Multi-engine, multi-vendor platforms | Databricks/Spark-centric platforms | Upsert-heavy CDC & streaming ingestion | Small/mid-size, low-ops, DuckDB-centric |
+
+## Operating a table format: the maintenance nobody mentions
+
+Open table formats trade the warehouse's invisible housekeeping for **jobs you schedule yourself** (or that a managed service runs for you). Skip them and performance degrades and storage bills grow quietly.
+
+| Task | Why | Iceberg | Delta | Hudi |
+|---|---|---|---|---|
+| **Compact small files** | Streaming and frequent commits create many small files; reads slow down | `rewrite_data_files` | `OPTIMIZE` | Clustering / compaction |
+| **Apply deletes** | Merge-on-read deltas accumulate | `rewrite_position_delete_files`, compaction | `OPTIMIZE` / `REORG` | Compaction (MOR) |
+| **Expire old versions** | History keeps old files alive and growing | `expire_snapshots` | `VACUUM` (after retention) | Cleaner |
+| **Remove orphan files** | Failed writes leave unreferenced files | `remove_orphan_files` | `VACUUM` | Cleaner |
+| **Tidy metadata** | Large metadata slows planning | `rewrite_manifests` | Checkpoints (automatic) | Timeline archival |
+| **Re-cluster / sort** | Keep data skipping effective | Sort order + compaction | Liquid clustering | Clustering |
+
+```sql
+-- Iceberg maintenance with Spark procedures
+CALL lake.system.rewrite_data_files(table => 'sales.orders');
+CALL lake.system.expire_snapshots(table => 'sales.orders', retain_last => 20);
+CALL lake.system.remove_orphan_files(table => 'sales.orders');
+CALL lake.system.rewrite_manifests('sales.orders');
+```
+
+<Callout type="tip" title="Let a managed service do it — but verify">
+Snowflake, Databricks, AWS (S3 Tables), Google and others now offer automatic compaction and snapshot management for managed tables. Use it, but monitor file counts, average file size and snapshot counts per table — they're the best early warning signs of a table that's about to get slow or expensive.
+</Callout>
+
+Two more operational realities:
+
+- **Time travel has a horizon.** Expiring snapshots (or vacuuming) permanently removes the files that older versions need. Agree retention per table with your compliance team — and remember that for GDPR deletes, the old versions must eventually go too.
+- **Concurrent writers can conflict.** Optimistic concurrency means two jobs updating the same partitions can force retries or failures. Design pipelines so that one writer owns a table (or a partition range) where possible.
+
+## How to choose
+
+Start with your platform, not the format's feature list:
+
+1. **Are you standardizing a multi-engine or multi-vendor platform?** Choose **Iceberg**. It's the common denominator that Snowflake, Databricks, BigQuery, Redshift, Trino, Flink and DuckDB all read and write.
+2. **Is your platform Databricks- or Spark-centric?** **Delta** is the native, most optimized path. Enable **UniForm** (or use managed Iceberg tables) where other engines need to read the data.
+3. **Is the hardest problem high-volume upserts from CDC or streams?** Evaluate **Hudi** (or **Paimon** if you're Flink-first) for the ingestion layer, and expose read paths through Iceberg compatibility.
+4. **Small or mid-size team, DuckDB-friendly, want minimal moving parts?** Try **DuckLake** — and keep an eye on how its ecosystem matures.
+5. **Already have lots of tables in one format?** Don't migrate for its own sake. Use interoperability features and catalogs to give other engines access, and migrate table by table only where there's a clear benefit.
+
+Then, whatever you choose, decide **which catalog** owns those tables — which, as we'll see next, matters just as much as the format.
+
+## Common pitfalls
+
+- **Ignoring maintenance** until queries slow down and storage costs balloon.
+- **Over-partitioning** (for example, partitioning by hour on a small table), creating thousands of tiny files.
+- **Letting engines bypass the catalog** by reading paths directly — losing consistency guarantees and access control.
+- **Assuming every engine supports every feature.** Check that each engine you need supports your format *version* and features (for example, Iceberg v3 deletion vectors) before enabling them.
+- **Mixing formats per table without a plan** — two writers using different formats on "the same" data is a recipe for drift.
+- **Unbounded time travel**, keeping years of snapshots nobody uses.
+
+## Key takeaways
+
+- A table format is **versioned metadata over immutable Parquet files**; a commit atomically switches to a new version.
+- **Iceberg** uses a metadata tree and a catalog pointer; **Delta** uses an ordered log with checkpoints; **Hudi** uses a timeline with powerful indexes; **DuckLake** stores metadata in a SQL database.
+- **Iceberg v3** (deletion vectors, row lineage, `VARIANT`, geospatial types) is now broadly supported; **v4** is in progress, focused on cheaper commits and faster planning.
+- **Copy-on-write vs merge-on-read** is the core performance trade-off for changing data; deletion vectors make merge-on-read far cheaper.
+- Interoperability is real but asymmetric: **pick one primary write format per table**.
+- **Maintenance is part of the architecture**: compaction, snapshot expiry and orphan cleanup must be scheduled or delegated.
+
+## Up next
+
+**Part 4 — Catalogs: The Metadata Control Plane.** Why the catalog has become the most strategic decision in the lakehouse, how the Iceberg REST specification works, and how Apache Polaris, Unity Catalog, AWS Glue and S3 Tables, Google's lakehouse catalog and Snowflake Horizon compare. Follow along on the [series page](/series/data-architecture) or via [RSS](/rss.xml).
+
+## References and further reading
+
+- [Apache Iceberg table specification](https://iceberg.apache.org/spec/) and [Iceberg 1.11.0 release notes](https://iceberg.apache.org/blog/apache-iceberg-1.11.0-release/) (May 2026).
+- Alex Merced — [An In-Depth Overview of the Apache Iceberg 1.11.0 Release](https://dev.to/alexmercedcoder/an-in-depth-overview-of-the-apache-iceberg-1110-release-4l1n) and [The State of Apache Iceberg v4 in July 2026](https://datalakehousehub.com/blog/iceberg-v4-state-july-2026/).
+- [Delta Lake transaction log protocol](https://github.com/delta-io/delta/blob/master/PROTOCOL.md) and [Delta Lake 4.1.0 release](https://delta.io/blog/2026-03-01-delta-lake-4-1-0-released/) (March 2026).
+- [Announcing Apache Hudi 1.0](https://hudi.apache.org/blog/2024/12/16/announcing-hudi-1-0-0/) (December 2024) and [Apache Hudi 1.1](https://hudi.apache.org/blog/2025/11/25/apache-hudi-release-1-1-announcement/) (November 2025).
+- DuckDB Labs — [DuckLake v1.0](https://duckdb.org/2026/04/13/ducklake-10) (April 2026) and [InfoQ coverage](https://www.infoq.com/news/2026/05/ducklake-sql-catalog/).
+- [Lakehouse Table Formats in 2026: Iceberg, Delta Lake, Hudi, Paimon and DuckLake](https://amdatalakehouse.substack.com/p/lakehouse-table-formats-in-2026-iceberg).
+- [Apache XTable (incubating)](https://xtable.apache.org/) · [Apache Paimon](https://paimon.apache.org/).
+- Armbrust et al. — [Delta Lake: High-Performance ACID Table Storage over Cloud Object Stores](https://www.vldb.org/pvldb/vol13/p3411-armbrust.pdf), VLDB 2020.

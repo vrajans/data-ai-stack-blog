@@ -1,0 +1,35 @@
+---
+import Figure from '../mdx/Figure.astro';
+const commits = ['…38.json', '…39.json', '…40.json', '…41.json', '…42.json'];
+---
+
+<Figure label="Delta Lake transaction log: numbered JSON commit files in the _delta_log directory record add and remove actions; a Parquet checkpoint periodically summarizes the state so readers start from the latest checkpoint and replay only newer commits." caption="Figure 3 — Inside a Delta table. Readers load the latest checkpoint and replay the JSON commits after it to get the current list of files. Writers commit by creating the next numbered file — only one can win.">
+  <svg viewBox="0 0 960 350" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="dl-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow-a"></path></marker></defs>
+    <text x="16" y="24" class="h">_delta_log/</text>
+    <rect x="16" y="40" width="190" height="64" rx="10" class="box-b"></rect>
+    <text x="111" y="66" text-anchor="middle" class="t tb" style="font-size:13px">…40.checkpoint.parquet</text>
+    <text x="111" y="86" text-anchor="middle" class="s">full table state at v40</text>
+    {commits.map((c, i) => (
+      <g>
+        <rect x={230 + i * 140} y="40" width="124" height="64" rx="10" class={i === 4 ? 'box-a' : 'box'} style={i < 3 ? 'opacity:.5' : ''}></rect>
+        <text x={292 + i * 140} y="66" text-anchor="middle" class="t" style="font-family:var(--font-mono);font-size:12.5px">{c}</text>
+        <text x={292 + i * 140} y="86" text-anchor="middle" class="s">{i === 4 ? 'new commit' : `v${38 + i}`}</text>
+      </g>
+    ))}
+    <path d="M111 104 C111 140 540 120 540 150" class="lna" marker-end="url(#dl-arr)"></path>
+    <path d="M712 104 L580 148" class="lna" marker-end="url(#dl-arr)"></path>
+    <path d="M852 104 L600 148" class="lna" marker-end="url(#dl-arr)"></path>
+    <text x="16" y="184" class="s" style="font-size:12.5px;fill:var(--text-soft)">reader = checkpoint v40 + replay v41, v42</text>
+
+    <rect x="380" y="152" width="360" height="54" rx="10" class="box-a"></rect>
+    <text x="560" y="176" text-anchor="middle" class="t ta" style="font-size:13.5px">Current snapshot (v42)</text>
+    <text x="560" y="195" text-anchor="middle" class="s">the set of live data files + schema + table features</text>
+
+    <rect x="16" y="226" width="928" height="110" rx="10" class="box"></rect>
+    <text x="32" y="250" class="h">INSIDE …42.json — ONE LINE PER ACTION</text>
+    <text x="32" y="274" class="s" style="font-family:var(--font-mono);font-size:12.5px;fill:var(--text)">{'{"commitInfo": {"operation": "MERGE", ...}}'}</text>
+    <text x="32" y="294" class="s" style="font-family:var(--font-mono);font-size:12.5px;fill:var(--text)">{'{"remove": {"path": "part-0007.parquet", ...}}'}</text>
+    <text x="32" y="314" class="s" style="font-family:var(--font-mono);font-size:12.5px;fill:var(--text)">{'{"add": {"path": "part-0112.parquet", "stats": "{numRecords, minValues, maxValues, ...}"}}'}</text>
+  </svg>
+</Figure>
