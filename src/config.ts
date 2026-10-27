@@ -11,17 +11,24 @@ export const SITE = {
   author: 'Varatharajan',
   authorBio:
     'Data & AI practitioner writing deep-dive guides on how modern data platforms and AI systems are designed, built and run.',
+  // Your YouTube brand, shown in the author box, header and footer
+  brand: 'Data & AI with Varath',
   locale: 'en-US',
   // Social links (leave '' to hide)
   social: {
     github: 'https://github.com/vrajans',
     linkedin: 'https://www.linkedin.com/in/varatharajan-subramanian-b1651525/',
+    youtube: 'https://www.youtube.com/@DataAndAIwithVarath',
     x: '',
   },
   // Free, privacy-friendly analytics: Cloudflare dashboard → Analytics & Logs → Web Analytics → add site → copy token
   cloudflareAnalyticsToken: '',
-  // Free newsletter (Buttondown / Substack / Beehiiv). Paste your form action URL to enable the signup box.
-  newsletterAction: '',
+  // Email newsletter via Kit (free up to 10,000 subscribers).
+  // Kit → Grow → Landing Pages & Forms → your form → Publish → HTML → copy the <form action="..."> URL here.
+  newsletter: {
+    action: '',            // e.g. 'https://app.kit.com/forms/1234567/subscriptions'
+    emailField: 'email_address',
+  },
   // Free comments via GitHub Discussions (https://giscus.app). Fill all four to enable.
   giscus: { repo: '', repoId: '', category: '', categoryId: '' },
   postsPerPage: 9,

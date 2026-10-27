@@ -1,7 +1,13 @@
 ---
 import { SITE, TRACKS } from '../config';
 import Newsletter from './Newsletter.astro';
+import { getPosts, tagCounts } from '../lib/posts';
+import { SERIES } from '../series';
 const year = new Date().getFullYear();
+const posts = await getPosts();
+const counts = tagCounts(posts);
+const liveTracks = TRACKS.filter((t) => (counts.get(t.tag) ?? 0) > 0);
+const liveSeries = SERIES.filter((s) => posts.some((p) => p.data.series === s.slug));
 ---
 
 <footer class="site-footer">
@@ -12,6 +18,7 @@ const year = new Date().getFullYear();
         <a href="/" class="brand">{SITE.title}</a>
         <p>{SITE.tagline}</p>
         <div class="social">
+          {SITE.social.youtube && <a href={SITE.social.youtube} rel="me noopener" target="_blank">YouTube</a>}
           {SITE.social.github && <a href={SITE.social.github} rel="me noopener" target="_blank">GitHub</a>}
           {SITE.social.linkedin && <a href={SITE.social.linkedin} rel="me noopener" target="_blank">LinkedIn</a>}
           {SITE.social.x && <a href={SITE.social.x} rel="me noopener" target="_blank">X</a>}
@@ -20,14 +27,14 @@ const year = new Date().getFullYear();
       </div>
       <div>
         <h3>Topics</h3>
-        <ul>{TRACKS.map((t) => <li><a href={`/tags/${t.tag}`}>{t.title}</a></li>)}</ul>
+        <ul>{liveTracks.map((t) => <li><a href={`/tags/${t.tag}`}>{t.title}</a></li>)}</ul>
       </div>
       <div>
         <h3>Explore</h3>
         <ul>
           <li><a href="/blog">All articles</a></li>
           <li><a href="/series">Series</a></li>
-          <li><a href="/series/data-architecture">Data Architecture series</a></li>
+          {liveSeries.map((s) => <li><a href={`/series/${s.slug}`}>{s.title} series</a></li>)}
           <li><a href="/about">About</a></li>
         </ul>
       </div>

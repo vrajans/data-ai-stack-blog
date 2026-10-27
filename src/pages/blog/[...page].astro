@@ -3,7 +3,7 @@ import type { GetStaticPaths, Page } from 'astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import PostCard from '../../components/PostCard.astro';
 import { SITE, TRACKS } from '../../config';
-import { getPosts, type Post } from '../../lib/posts';
+import { getPosts, tagCounts, type Post } from '../../lib/posts';
 
 export const getStaticPaths = (async ({ paginate }) => {
   const posts = await getPosts();
@@ -11,6 +11,7 @@ export const getStaticPaths = (async ({ paginate }) => {
 }) satisfies GetStaticPaths;
 
 const { page } = Astro.props as { page: Page<Post> };
+const counts = tagCounts(await getPosts());
 ---
 
 <BaseLayout title={page.currentPage > 1 ? `Articles — page ${page.currentPage}` : 'All articles'} description="Every deep dive on the data & AI stack, newest first.">
@@ -19,7 +20,7 @@ const { page } = Astro.props as { page: Page<Post> };
       <p class="eyebrow">Library</p>
       <h1>All articles</h1>
       <p>{page.total} {page.total === 1 ? 'article' : 'articles'} on the end-to-end data &amp; AI stack. Filter by topic:</p>
-      <div class="chips">{TRACKS.map((t) => <a class="pill" href={`/tags/${t.tag}`}>{t.icon} {t.title}</a>)}</div>
+      <div class="chips">{TRACKS.filter((t) => (counts.get(t.tag) ?? 0) > 0).map((t) => <a class="pill" href={`/tags/${t.tag}`}>{t.icon} {t.title}</a>)}</div>
     </header>
     <div class="grid">{page.data.map((p) => <PostCard post={p} />)}</div>
     {

@@ -2,7 +2,7 @@
 title: 'Welcome: Mapping the End-to-End Data & AI Stack'
 description: 'Why this blog exists, what it will cover, and how the series are organized — from data architecture to AI agents.'
 pubDate: 2026-09-24
-tags: [data-architecture, data-engineering, generative-ai]
+tags: [data-architecture]
 ogImage: /og/welcome-the-data-ai-stack.png
 ---
 
@@ -21,7 +21,9 @@ Everything follows the flow of data, left to right:
 5. **Machine Learning Systems** — features, training pipelines, MLOps and serving.
 6. **Generative AI & Agents** — RAG, vector search, evaluation, LLMOps and agentic systems built on a solid data foundation.
 
-Each track is published as a **series** you can read in order. You can see every planned part on the [series page](/series).
+Each track is published as a **series** you can read in order, starting with Data Architecture. You can follow progress on the [series page](/series).
+
+Many articles also have a companion video on my YouTube channel, [Data & AI with Varath](https://www.youtube.com/@DataAndAIwithVarath).
 
 ## Where to start
 

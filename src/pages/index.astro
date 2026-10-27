@@ -74,7 +74,7 @@ const layers = [
       <div class="section-title"><h2>Explore the stack</h2><a href="/tags">All topics →</a></div>
       <div class="tracks">
         {
-          TRACKS.map((t) => (
+          TRACKS.filter((t) => (counts.get(t.tag) ?? 0) > 0).map((t) => (
             <a class="card track" href={`/tags/${t.tag}`}>
               <span class="icon" aria-hidden="true">{t.icon}</span>
               <div>

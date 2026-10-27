@@ -1,0 +1,43 @@
+---
+// Privacy-friendly, fast YouTube embed: shows a thumbnail and only loads the
+// player (from youtube-nocookie.com) when the reader clicks play.
+interface Props { id: string; title: string }
+const { id, title } = Astro.props;
+const thumb = `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+---
+
+<figure class="yt" data-pagefind-ignore>
+  <button type="button" class="yt-btn" data-yt={id} aria-label={`Play video: ${title}`} style={`background-image:url(${thumb})`}>
+    <span class="play" aria-hidden="true">
+      <svg viewBox="0 0 68 48" width="68" height="48"><path d="M66.5 7.7a8.5 8.5 0 0 0-6-6C55.2.3 34 .3 34 .3s-21.2 0-26.5 1.4a8.5 8.5 0 0 0-6 6C.1 13 .1 24 .1 24s0 11 1.4 16.3a8.5 8.5 0 0 0 6 6C12.8 47.7 34 47.7 34 47.7s21.2 0 26.5-1.4a8.5 8.5 0 0 0 6-6C67.9 35 67.9 24 67.9 24s0-11-1.4-16.3z" fill="#f00"></path><path d="M45 24 27 14v20z" fill="#fff"></path></svg>
+    </span>
+  </button>
+  <figcaption>📺 Prefer video? Watch the companion episode on <a href={`https://www.youtube.com/watch?v=${id}`} target="_blank" rel="noopener">YouTube</a>.</figcaption>
+</figure>
+
+<style>
+  .yt { margin: 0 0 32px; }
+  .yt-btn {
+    position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--border); border-radius: 14px;
+    background-size: cover; background-position: center; cursor: pointer; overflow: hidden; padding: 0;
+  }
+  .yt-btn::after { content: ''; position: absolute; inset: 0; background: rgba(0, 0, 0, .18); transition: background .2s; }
+  .yt-btn:hover::after { background: rgba(0, 0, 0, .05); }
+  .play { position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; }
+  .yt :global(iframe) { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 14px; display: block; }
+  figcaption { font-size: 14px; color: var(--text-mute); margin-top: 8px; text-align: center; }
+  figcaption a { color: var(--accent); }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('[data-yt]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const f = document.createElement('iframe');
+      f.src = `https://www.youtube-nocookie.com/embed/${btn.dataset.yt}?autoplay=1&rel=0`;
+      f.title = btn.getAttribute('aria-label') ?? 'YouTube video';
+      f.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      f.allowFullscreen = true;
+      btn.replaceWith(f);
+    });
+  });
+</script>

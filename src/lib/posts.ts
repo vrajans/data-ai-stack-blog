@@ -33,3 +33,10 @@ export function relatedPosts(post: Post, all: Post[], n = 3): Post[] {
     .slice(0, n)
     .map((x) => x.p);
 }
+
+/** Count of posts per tag. */
+export function tagCounts(posts: Post[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  posts.forEach((p) => p.data.tags.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1)));
+  return counts;
+}

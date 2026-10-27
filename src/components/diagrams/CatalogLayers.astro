@@ -1,0 +1,25 @@
+---
+import Figure from '../mdx/Figure.astro';
+const layers = [
+  { t: 'Business & discovery catalog', s: 'search, glossary, ownership, lineage, quality, data products', ex: 'DataHub · OpenMetadata · Atlan · Collibra · Alation', cls: 'box' },
+  { t: 'Federation layer (optional)', s: 'one view and one policy model across several technical catalogs', ex: 'Glue / Google catalog federation · Polaris federation · Apache Gravitino', cls: 'box-w' },
+  { t: 'Technical (runtime) catalog', s: 'table names → metadata pointer, atomic commits, access control, credentials', ex: 'Apache Polaris · Unity Catalog · AWS Glue / S3 Tables · Snowflake Horizon · Google Lakehouse · Nessie · Lakekeeper', cls: 'box-b' },
+  { t: 'Open tables on object storage', s: 'Iceberg / Delta / Hudi metadata + Parquet data files', ex: 'S3 · ADLS · GCS', cls: 'box-a' },
+];
+---
+
+<Figure label="Four layers: open tables on object storage at the bottom, a technical runtime catalog above them, an optional federation layer, and a business and discovery catalog at the top." caption="Figure 2 — 'Catalog' means two different things. Engines need the technical catalog to work at all; people need the business catalog to find and trust data. Federation connects several technical catalogs.">
+  <svg viewBox="0 0 960 360" xmlns="http://www.w3.org/2000/svg">
+    {layers.map((l, i) => {
+      const y = 12 + i * 86;
+      return (
+        <g>
+          <rect x="16" y={y} width="928" height="74" rx="12" class={l.cls}></rect>
+          <text x="36" y={y + 28} class="t" style="font-size:15px">{l.t}</text>
+          <text x="36" y={y + 49} class="s" style="font-size:12.5px;fill:var(--text-soft)">{l.s}</text>
+          <text x="36" y={y + 66} class="s" style="font-size:12px">{l.ex}</text>
+        </g>
+      );
+    })}
+  </svg>
+</Figure>

@@ -17,6 +17,8 @@ const blog = defineCollection({
     draft: z.boolean().default(false),
     // Optional social-share image placed in /public (e.g. /og/my-post.png)
     ogImage: z.string().optional(),
+    // Optional YouTube video ID of the companion video (the part after watch?v=)
+    youtube: z.string().optional(),
   }),
 });
 

@@ -1,0 +1,261 @@
+---
+title: 'Catalogs: The Metadata Control Plane of the Lakehouse'
+description: 'Why the catalog is the most strategic lakehouse decision: how the Iceberg REST protocol works, how Polaris, Unity, Glue and Horizon compare, and how to choose.'
+pubDate: 2026-10-17
+tags: [data-architecture, lakehouse, data-catalog, apache-iceberg, data-governance]
+series: data-architecture
+seriesOrder: 4
+ogImage: /og/lakehouse-catalogs-metadata-control-plane.png
+---
+
+import Callout from '../../components/mdx/Callout.astro';
+import RestCatalogFlow from '../../components/diagrams/RestCatalogFlow.astro';
+import CatalogLayers from '../../components/diagrams/CatalogLayers.astro';
+import CatalogPatterns from '../../components/diagrams/CatalogPatterns.astro';
+
+In [Part 3](/blog/open-table-formats-deep-dive) we saw that an Iceberg commit is "a single atomic pointer swap in the catalog". That one sentence explains why, in 2026, the most consequential lakehouse decision is no longer the table format. It's the **catalog**.
+
+The catalog decides which engines can find your tables, who is allowed to read or change them, whether a commit succeeds, and — increasingly — what an AI agent is permitted to see. Choose a catalog that every engine can talk to and you get a genuinely open platform. Choose one that only works well inside a single vendor, and your "open" Parquet files are effectively closed again.
+
+This is Part 4 of the [Data Architecture series](/series/data-architecture). We'll cover what a catalog actually does, how the Iceberg REST protocol works under the hood, the main options and how they differ, how to design governance and multi-catalog strategies, and a checklist for choosing.
+
+<Callout type="key" title="The short answer">
+Treat the catalog as **infrastructure, not a feature of an engine**. Prefer a catalog that implements the **Apache Iceberg REST specification** (including credential vending), keep one catalog as the source of truth for each table's writes, and connect other platforms through REST interoperability or federation. Then verify the claims in a proof of concept — spec support still varies a lot between products.
+</Callout>
+
+## What a catalog actually does
+
+"Catalog" is one of the most overloaded words in data. It helps to separate two very different things:
+
+- A **technical (runtime) catalog** is part of the query path. Engines can't read or write a table without it.
+- A **business (discovery) catalog** helps *people* find, understand and trust data — search, glossaries, ownership, lineage, quality scores.
+
+This article is mainly about the first kind. A technical catalog has five jobs:
+
+1. **Naming.** Map a logical name (`sales.orders`) to a physical table, organized in namespaces.
+2. **Pointer and commits.** Store the location of each table's *current* metadata, and swap it atomically when a writer commits — rejecting commits based on stale state. This is what makes multi-writer lakehouses correct.
+3. **Access control.** Decide which users, services and agents can list, read, write or administer which tables.
+4. **Credential management.** Give engines short-lived, narrowly scoped access to the underlying storage, so nobody needs broad, long-lived bucket keys.
+5. **Policy enforcement.** Increasingly, apply row filters and column masks, audit every access, and expose lineage and metadata to other tools.
+
+<CatalogLayers />
+
+## How we got here: from Hive Metastore to a REST standard
+
+For more than a decade the default technical catalog was the **Hive Metastore (HMS)** — a Thrift service backed by a relational database. It was everywhere, but it was designed for Hive's folder-based tables: engines needed HMS-specific client libraries, it had no notion of atomic multi-file commits for modern table formats, and access control was bolted on elsewhere.
+
+Cloud providers built managed equivalents (the AWS Glue Data Catalog started as a managed, HMS-compatible catalog), and every warehouse had its own internal catalog. Each Iceberg engine needed a different client plugin for each catalog, which made true multi-engine platforms painful.
+
+The fix was the **Iceberg REST catalog specification**: an OpenAPI-defined HTTP protocol that any catalog can implement and any engine can speak. Instead of N engines × M catalog plugins, there's one protocol. By 2026 it's the common language across Snowflake, Databricks, AWS, Google, open-source engines and most new catalogs.
+
+## How the Iceberg REST protocol works
+
+The protocol is intentionally simple: JSON over HTTPS, a handful of resources (configuration, namespaces, tables, views), and a commit model built on optimistic concurrency.
+
+<RestCatalogFlow />
+
+### Configuration and authentication
+
+A client first calls the configuration endpoint, which can return defaults, overrides and — in newer versions — the list of endpoints the server actually supports. Authentication is typically OAuth2 (client credentials or token exchange) or a cloud-native identity mechanism, depending on the catalog.
+
+### Loading a table and getting storage access
+
+Loading a table returns its metadata: schema, partition spec, snapshots and the location of the metadata file. The client can also ask the catalog for **delegated storage access**, in one of two forms:
+
+- **Credential vending** — the catalog returns short-lived credentials scoped to just that table's storage location (for example, temporary cloud credentials limited to one prefix).
+- **Remote signing** — the engine sends each storage request to the catalog to be signed, so credentials never leave the catalog at all; useful for highly regulated data.
+
+Either way, **the catalog is the only principal with broad storage access**. That's what stops users and engines from bypassing table permissions by reading files directly.
+
+### Committing changes
+
+A commit is a request containing **requirements** (assertions about the state the writer started from) and **updates** (the changes to apply). The catalog checks the requirements and applies the updates atomically — or rejects the commit with a conflict so the writer can refresh and retry.
+
+```json
+POST /v1/{prefix}/namespaces/sales/tables/orders
+{
+  "requirements": [
+    { "type": "assert-ref-snapshot-id", "ref": "main", "snapshot-id": 8211 }
+  ],
+  "updates": [
+    { "action": "add-snapshot", "snapshot": { "snapshot-id": 8212, "...": "..." } },
+    { "action": "set-snapshot-ref", "ref-name": "main", "type": "branch", "snapshot-id": 8212 }
+  ]
+}
+```
+
+The specification also defines **multi-table transactions** (commit changes to several tables atomically) and **views**, though, as we'll see, support for these more advanced parts varies widely.
+
+### Remote scan planning: the catalog becomes an enforcement point
+
+The newest major capability is **server-side (remote) scan planning**, shipped in the Iceberg Java library 1.11 in May 2026. Instead of each engine reading manifests and deciding which files to scan, the engine sends the catalog its query's table, filter and projection; the catalog returns the exact file scan tasks to execute.
+
+Two consequences matter for architects. First, because the catalog plans the scan *knowing who is asking*, it can enforce row-level and column-level policies consistently for every engine. Second, engines become much thinner — a minimal Iceberg reader needs little more than an HTTP client and a Parquet reader — which makes it easier for new tools, languages and AI agents to read governed data correctly.
+
+### Connecting an engine
+
+From the engine's side, using a REST catalog is mostly configuration:
+
+```properties
+# Spark: register an Iceberg REST catalog named "lake"
+spark.sql.catalog.lake=org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.lake.type=rest
+spark.sql.catalog.lake.uri=https://catalog.example.com/api/catalog
+spark.sql.catalog.lake.warehouse=analytics
+spark.sql.catalog.lake.credential=<client-id>:<client-secret>
+spark.sql.catalog.lake.header.X-Iceberg-Access-Delegation=vended-credentials
+```
+
+```python
+# Python: the same catalog from PyIceberg
+from pyiceberg.catalog import load_catalog
+
+catalog = load_catalog("lake", **{
+    "type": "rest",
+    "uri": "https://catalog.example.com/api/catalog",
+    "warehouse": "analytics",
+    "credential": "<client-id>:<client-secret>",
+})
+orders = catalog.load_table("sales.orders")
+df = orders.scan(row_filter="order_ts >= '2026-10-01T00:00:00'").to_arrow()
+```
+
+Swap the URI and credentials and the same code works against a different compliant catalog. That portability is the whole point.
+
+## The catalog landscape in 2026
+
+The options fall into three groups: **open-source catalogs** you can run yourself (or buy as a managed service), **cloud-native catalogs** tied to a hyperscaler, and **platform catalogs** built into a data platform.
+
+### Open-source catalogs
+
+- **Apache Polaris** — an Iceberg REST catalog created by Snowflake and Dremio, donated to the Apache Software Foundation in 2024 and graduated to a top-level Apache project in February 2026. It implements the REST spec with credential vending, a hierarchical role-based access model, federation to other catalogs (such as Glue, Hive Metastore and other REST catalogs) and "generic tables" for non-Iceberg assets. It's also available as managed services, including Snowflake Open Catalog.
+- **Unity Catalog (open source)** — open-sourced by Databricks in June 2024 and hosted by the LF AI & Data Foundation. It governs tables (Delta, Iceberg and more), unstructured "volumes", functions and ML models in one namespace and exposes an Iceberg REST API. Note that the open-source edition lags the managed Databricks edition in features.
+- **Apache Gravitino** — a top-level Apache project since June 2025, positioned as a federated metadata layer that unifies metadata across warehouses, lakehouses, streaming systems and AI assets, and includes an Iceberg REST service.
+- **Project Nessie** — adds Git-like branches, tags and commits *across* tables, enabling isolated experimentation and multi-table changes; it supports the Iceberg REST protocol.
+- **Lakekeeper** — a newer, lightweight Iceberg REST catalog written in Rust.
+- **Hive Metastore** — still widely deployed; fine for legacy Hive and Spark workloads, but not where new open-lakehouse platforms should start.
+
+### Cloud-native catalogs
+
+- **AWS Glue Data Catalog** — the default AWS catalog, with an Iceberg REST endpoint, Lake Formation permissions, and catalog federation to remote Iceberg catalogs. **Amazon S3 Tables** (launched December 2024) makes Iceberg tables a first-class S3 resource with automatic compaction, snapshot management and unreferenced-file cleanup, accessible through the same REST interface.
+- **Google Lakehouse for Apache Iceberg** (formerly BigLake) — an Iceberg REST catalog shared by BigQuery, Spark and open-source engines, with federation to AWS Glue, Unity Catalog and Snowflake Horizon.
+- **Microsoft OneLake catalog** in Fabric — governs data in OneLake, which stores tables as Delta and exposes them as Iceberg through metadata virtualization.
+
+### Platform catalogs
+
+- **Databricks Unity Catalog (managed)** — the governance layer of the Databricks platform: managed and foreign Iceberg tables, Delta tables, volumes, models and functions, with fine-grained access control and an Iceberg REST API that external engines can use.
+- **Snowflake Horizon Catalog** — Snowflake's governance layer, which exposes Snowflake-managed Iceberg tables to external engines (including external writes, generally available since May 2026) and is extending to externally managed tables (in preview as of August 2026).
+
+| Catalog | Type | Iceberg REST | Formats governed | Notable strengths | Watch out for |
+|---|---|---|---|---|---|
+| **Apache Polaris** | Open source / managed | Yes (reference-grade) | Iceberg; others as generic tables | Vendor-neutral, credential vending, federation | You operate it (unless managed) |
+| **Unity Catalog** | Managed (Databricks) / open source | Yes | Delta, Iceberg, files, models, functions | Broadest data + AI asset coverage, fine-grained governance | OSS edition lags; strongest inside Databricks |
+| **AWS Glue / S3 Tables** | Cloud-native | Yes | Iceberg (+ Hive-style tables in Glue) | Deep AWS integration, managed maintenance in S3 Tables | AWS-centric permission model |
+| **Google Lakehouse (BigLake)** | Cloud-native | Yes | Iceberg | BigQuery + Spark on same tables, cross-cloud federation | Google-centric |
+| **Snowflake Horizon** | Platform | Yes | Iceberg (Snowflake-managed; external in preview) | Snowflake governance applied to open tables | Best experience inside Snowflake |
+| **Apache Gravitino** | Open source | Yes | Many (tables, streams, AI assets) | Federation across heterogeneous systems | Younger ecosystem |
+| **Project Nessie** | Open source | Yes | Iceberg | Git-like branching, multi-table commits | Niche operational model |
+
+*Status as of October 2026. Capabilities change quickly — verify against current documentation for your edition and region.*
+
+<Callout type="warn" title="'Supports Iceberg REST' is not a binary">
+A September 2026 compatibility test of REST catalogs found that basic table operations are widely supported, but views, multi-table transactions and remote scan planning are implemented unevenly — and some managed catalogs advertised endpoints they didn't actually serve. Test the specific operations you depend on (writes from each engine, views, credential vending, conflict handling) before committing.
+</Callout>
+
+## Governance lives in the catalog
+
+Once all engines go through one catalog, it becomes the natural place to define and enforce governance. Design it deliberately.
+
+**Access model.** Most catalogs start with **role-based access control (RBAC)**: principals (users, services) get roles; roles get privileges on catalogs, namespaces and tables. Mature platforms add **attribute-based access control (ABAC)** — policies driven by tags such as `pii = true` or `region = eu` — so one policy covers thousands of tables automatically as they're tagged.
+
+**Row and column security.** Row filters and column masks are where catalogs differ most. Ask *where* they're enforced: by each engine (which must be trusted to apply the policy), or by the catalog itself — for example via remote scan planning or by only vending credentials to engines that support the policy.
+
+**No back doors.** Governance fails the moment someone reads Parquet files straight from the bucket. Credential vending (or remote signing) lets you remove direct bucket access from humans and most services, so the catalog is the only path to data.
+
+**Audit and lineage.** Every load and commit through the catalog can be logged. Combine those logs with lineage standards such as OpenLineage and you can answer "who accessed this, and what was built from it?" — increasingly a regulatory requirement.
+
+**Identity for non-humans.** Pipelines, BI tools and AI agents should each have their own identity with least-privilege access, rather than sharing a powerful service account.
+
+## Multi-catalog strategy and federation
+
+In a perfect world there is exactly one catalog. In the real world, a company may run Databricks for data engineering, Snowflake for BI, AWS services for applications and Google for analytics in one region. The question becomes *how* catalogs relate to each other.
+
+<CatalogPatterns />
+
+**Pattern A — one primary catalog.** Every engine connects to one standards-based catalog. This gives the cleanest governance and is the right default for most organizations that are starting fresh or consolidating.
+
+**Pattern B — platform catalogs plus federation.** Each platform keeps its native catalog, and shared tables are exposed across them through REST interoperability or catalog federation (Glue, Google and Polaris all federate with other catalogs; Gravitino is built around the idea). It's pragmatic, but you now have several policy models — and federation often gives read access more easily than consistent write governance.
+
+**Pattern C — one writer catalog per domain.** Whatever you do with reads, keep exactly **one catalog responsible for writes** to each table. Two catalogs both believing they own a table's metadata pointer is a recipe for lost commits and corrupted history.
+
+<Callout type="tip" title="The rule that prevents most catalog incidents">
+For every important table, you should be able to answer in one sentence: *which catalog owns writes, and which engines read it through which path?* Write it down in your platform documentation and enforce it with permissions.
+</Callout>
+
+## Catalogs in the AI era
+
+Catalogs are becoming the **context and control layer for AI**:
+
+- **Context.** Table and column descriptions, tags, business glossary terms and lineage are exactly what an LLM needs to write correct SQL or choose the right dataset. Rich metadata in the catalog directly improves AI answers.
+- **AI assets.** Several catalogs now govern models, functions, unstructured volumes and other AI assets alongside tables, so the same permissions and lineage apply.
+- **Agent governance.** When agents query data through tools and protocols such as the Model Context Protocol, the catalog's identity, permissions, row/column policies and audit logs are what keep them inside their lane.
+
+Part 9 of this series covers AI-ready architecture in depth; the short version is that **a well-governed catalog is a prerequisite for safe enterprise AI**, not an afterthought.
+
+## How to choose: an evaluation checklist
+
+Use these questions in vendor evaluations and proofs of concept:
+
+1. **Protocol:** Does it implement the Iceberg REST spec? Which endpoints exactly — including views, multi-table transactions and scan planning?
+2. **Engines:** Can every engine you need (today and likely in three years) both **read and write** through it? Test each one.
+3. **Storage access:** Does it support credential vending and/or remote signing on your clouds? Can you remove direct bucket access?
+4. **Governance:** RBAC, ABAC, row filters, column masks — and where are they enforced? Are policies applied consistently to external engines?
+5. **Formats and assets:** Iceberg only, or Delta, files, models, functions too? Do you need that breadth?
+6. **Federation:** Can it federate with, or be federated by, the other catalogs you can't avoid?
+7. **Operations:** Managed or self-hosted? Backups, HA, disaster recovery, multi-region, upgrade path, maintenance services (compaction, snapshot expiry)?
+8. **Portability:** If you leave, can you export namespaces, tables, permissions and history? Is there an open-source equivalent you could move to?
+9. **Cost:** Is the catalog priced separately, bundled with a platform, or does it drive compute spend elsewhere?
+
+## Recommendations by situation
+
+- **Greenfield, multi-engine, cloud-agnostic:** a REST catalog such as **Apache Polaris** (self-hosted or managed) as the single source of truth.
+- **Databricks-centric:** **Unity Catalog** as the primary catalog; expose tables to other engines via its Iceberg REST API, and register external Iceberg tables as foreign tables.
+- **Snowflake-centric:** Snowflake-managed Iceberg tables governed by **Horizon**, with external engines writing through its REST endpoint; consider Snowflake Open Catalog where you want Polaris semantics.
+- **AWS-native:** **Glue Data Catalog** with Lake Formation, and **S3 Tables** where you want AWS to handle table maintenance.
+- **Google-native:** **Google Lakehouse for Apache Iceberg**, sharing tables between BigQuery and Spark, federating to other clouds where needed.
+- **Several unavoidable platforms:** pick a primary catalog for shared data products, assign one writer catalog per domain, and federate the rest — accept that this is an ongoing governance programme, not a one-time integration.
+
+## Common pitfalls
+
+- **Choosing the catalog by accident** — it comes "free" with the first engine, and three years later it's the hardest thing to change.
+- **Leaving bucket access open** so engines and people bypass catalog permissions.
+- **Two catalogs writing the same table**, or migrating catalogs without freezing writes.
+- **Trusting the feature matrix** instead of testing writes, views and conflicts from every engine.
+- **Forgetting the business catalog** — engines can find tables, but people still can't find or trust them.
+- **Thin metadata** — no descriptions, owners or tags, which cripples discovery, ABAC and AI use alike.
+
+## Key takeaways
+
+- The **technical catalog** is part of the query path: it maps names to metadata, serializes commits, controls access and vends credentials.
+- The **Iceberg REST specification** is now the common protocol; credential vending, remote signing and (since Iceberg 1.11) remote scan planning turn the catalog into a real **enforcement point**.
+- Options range from open source (**Polaris**, **Unity OSS**, **Gravitino**, **Nessie**) to cloud-native (**Glue / S3 Tables**, **Google Lakehouse**, **OneLake**) and platform catalogs (**Unity**, **Horizon**).
+- Spec support varies: **test the operations you depend on**.
+- Keep **one writer catalog per table**, prefer **one primary catalog**, and federate only where you must.
+- Rich catalog metadata and governance are **prerequisites for trustworthy AI** on your data.
+
+## Up next
+
+**Part 5 — Data Modeling for the Modern Stack.** With storage, formats and catalogs in place, how should the tables themselves be designed? We'll compare Kimball dimensional models, Data Vault 2.0, One Big Table and medallion layering — and when to use each. Follow along on the [series page](/series/data-architecture), via [RSS](/rss.xml) or by email.
+
+## References and further reading
+
+- [Apache Iceberg REST catalog OpenAPI specification](https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml) and [Iceberg 1.11.0 release](https://iceberg.apache.org/blog/apache-iceberg-1.11.0-release/) (May 2026).
+- Alex Merced — [Iceberg REST Remote Scan Planning Changes More Than Query Performance](https://alexmerced.blog/blog/2026-08-24-iceberg-rest-remote-scan-planning.html) (August 2026) and [The State of Apache Iceberg Catalogs in June 2026](https://dev.to/alexmercedcoder/the-state-of-apache-iceberg-catalogs-in-june-2026-265e).
+- [The 2026 Iceberg REST Catalog Compatibility Report](https://datalakehousehub.com/blog/iceberg-rest-catalog-compatibility-report-2026/) (September 2026; note the author's affiliation with Dremio/Polaris).
+- Dremio — [Apache Polaris: The Catalog Standard for Iceberg Lakehouses](https://www.dremio.com/blog/apache-polaris-the-catalog-standard-for-lakehouses-and-ai/) · [Apache Polaris](https://polaris.apache.org/).
+- Databricks — [Open sourcing Unity Catalog](https://www.databricks.com/blog/open-sourcing-unity-catalog) (June 2024) and [Advancing Apache Iceberg on Databricks](https://www.databricks.com/blog/unity-catalog-and-next-era-apache-icebergtm) (May 2026).
+- [Apache Gravitino graduates as a top-level project](https://gravitino.apache.org/blog/gravitino-top-level-project/) (June 2025).
+- AWS — [Amazon S3 Tables](https://aws.amazon.com/s3/features/tables/) and [Catalog federation for Iceberg tables in the AWS Glue Data Catalog](https://aws.amazon.com/blogs/big-data/introducing-catalog-federation-for-apache-iceberg-tables-in-the-aws-glue-data-catalog/).
+- Google Cloud — [Lakehouse for Apache Iceberg (formerly BigLake)](https://cloud.google.com/products/lakehouse).
+- Snowflake — [External write support for Iceberg tables via Horizon (GA, May 2026)](https://docs.snowflake.com/en/release-notes/2026/other/2026-05-26-tables-iceberg-query-using-external-query-engine-snowflake-horizon-writes-ga) and [Externally managed Iceberg tables through Horizon (preview, August 2026)](https://docs.snowflake.com/en/release-notes/2026/other/2026-08-18-externally-managed-iceberg-tables-horizon-irc-preview).
+- Microsoft — [OneLake overview](https://learn.microsoft.com/en-us/fabric/onelake/onelake-overview).

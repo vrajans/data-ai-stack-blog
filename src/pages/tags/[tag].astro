@@ -6,7 +6,7 @@ import { getPosts, titleCase } from '../../lib/posts';
 
 export async function getStaticPaths() {
   const posts = await getPosts();
-  const tags = new Set<string>([...TRACKS.map((t) => t.tag), ...posts.flatMap((p) => p.data.tags)]);
+  const tags = new Set<string>(posts.flatMap((p) => p.data.tags));
   return [...tags].map((tag) => ({ params: { tag }, props: { posts: posts.filter((p) => p.data.tags.includes(tag)) } }));
 }
 const { tag } = Astro.params;

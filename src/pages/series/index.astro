@@ -4,6 +4,7 @@ import { getPosts } from '../../lib/posts';
 import { SERIES } from '../../series';
 
 const posts = await getPosts();
+const live = SERIES.filter((s) => posts.some((p) => p.data.series === s.slug));
 ---
 
 <BaseLayout title="Series" description="Multi-part deep dives that walk through one layer of the data & AI stack end to end.">
@@ -15,7 +16,7 @@ const posts = await getPosts();
     </header>
     <div class="list">
       {
-        SERIES.map((s, i) => {
+        live.map((s, i) => {
           const published = posts.filter((p) => p.data.series === s.slug).length;
           return (
             <a class="card series" href={`/series/${s.slug}`}>

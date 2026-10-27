@@ -31,6 +31,7 @@ const fm = [
   `tags: [${tags.join(', ')}]`,
   series ? `series: ${series}` : null,
   series && part ? `seriesOrder: ${part}` : null,
+  '# youtube: VIDEO_ID   # optional companion video',
   'draft: true',
   '---',
 ].filter(Boolean).join('\n');

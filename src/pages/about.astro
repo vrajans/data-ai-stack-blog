@@ -9,6 +9,13 @@ import { SITE } from '../config';
       <p class="eyebrow">About</p>
       <h1>Hi, I'm {SITE.author}.</h1>
       <p class="lead">{SITE.authorBio}</p>
+      {SITE.social.youtube && (
+        <p>
+          I also run the YouTube channel <a href={SITE.social.youtube}><strong>{SITE.brand}</strong></a>, where many of these
+          topics get a companion video. The blog is the written, searchable, deeper version — each article links to its video
+          and each video links back here.
+        </p>
+      )}
       <p>
         <strong>{SITE.title}</strong> is where I publish long-form, research-backed guides on the end-to-end data &amp; AI stack —
         from how data is captured at the source, through storage, transformation and governance, all the way to analytics,
@@ -22,7 +29,7 @@ import { SITE } from '../config';
       </ul>
       <h2>Stay in touch</h2>
       <p>
-        Follow along via <a href="/rss.xml">RSS</a>
+        Subscribe by email using the form below, follow along via <a href="/rss.xml">RSS</a>
         {SITE.social.linkedin && <> or on <a href={SITE.social.linkedin}>LinkedIn</a></>}. Corrections and suggestions are always welcome.
       </p>
     </div>

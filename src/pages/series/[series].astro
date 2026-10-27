@@ -5,7 +5,7 @@ import { SERIES } from '../../series';
 
 export async function getStaticPaths() {
   const posts = await getPosts();
-  return SERIES.map((s) => ({ params: { series: s.slug }, props: { s, posts: posts.filter((p) => p.data.series === s.slug) } }));
+  return SERIES.filter((s) => posts.some((p) => p.data.series === s.slug)).map((s) => ({ params: { series: s.slug }, props: { s, posts: posts.filter((p) => p.data.series === s.slug) } }));
 }
 const { s, posts } = Astro.props;
 const byOrder = new Map(posts.map((p) => [p.data.seriesOrder ?? 0, p]));

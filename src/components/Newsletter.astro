@@ -1,24 +1,35 @@
 ---
 import { SITE } from '../config';
-const { compact = false } = Astro.props as { compact?: boolean };
+interface Props { variant?: 'footer' | 'inline'; id?: string }
+const { variant = 'footer', id = 'nl' } = Astro.props;
+const nl = SITE.newsletter;
+const heading = variant === 'inline' ? 'Get the next part by email' : 'Get the next deep dive in your inbox';
 ---
 
-<section class:list={['newsletter', { compact }]} aria-labelledby="nl-title">
+<section class:list={['newsletter', variant]} aria-labelledby={`${id}-title`}>
   <div>
-    <h2 id="nl-title">Get the next deep dive in your inbox</h2>
-    <p>New research on the data &amp; AI stack, roughly twice a month. No spam, unsubscribe anytime.</p>
+    <h2 id={`${id}-title`}>{heading}</h2>
+    <p>
+      {
+        variant === 'inline'
+          ? 'One email when a new part of the series is published. No spam, unsubscribe anytime.'
+          : 'New research on the data & AI stack, roughly every week or two. No spam, unsubscribe anytime.'
+      }
+    </p>
   </div>
   {
-    SITE.newsletterAction ? (
-      <form action={SITE.newsletterAction} method="post" target="_blank" class="nl-form">
-        <label for="nl-email" class="sr-only">Email address</label>
-        <input id="nl-email" type="email" name="email" placeholder="you@company.com" required autocomplete="email" />
+    nl.action ? (
+      <form action={nl.action} method="post" class="nl-form" data-nl-form>
+        <label for={`${id}-email`} class="sr-only">Email address</label>
+        <input id={`${id}-email`} type="email" name={nl.emailField} placeholder="you@company.com" required autocomplete="email" />
         <button class="btn primary" type="submit">Subscribe</button>
+        <p class="nl-msg" role="status" aria-live="polite"></p>
       </form>
     ) : (
       <div class="nl-form">
         <a class="btn primary" href="/rss.xml">Follow via RSS</a>
-        <a class="btn" href={SITE.social.linkedin || '/about'} target="_blank" rel="noopener">Follow on LinkedIn</a>
+        {SITE.social.youtube && <a class="btn" href={SITE.social.youtube} target="_blank" rel="noopener">YouTube</a>}
+        {SITE.social.linkedin && <a class="btn" href={SITE.social.linkedin} target="_blank" rel="noopener">LinkedIn</a>}
       </div>
     )
   }
@@ -35,12 +46,37 @@ const { compact = false } = Astro.props as { compact?: boolean };
   }
   h2 { margin: 0 0 6px; font-size: 22px; }
   p { margin: 0; color: var(--text-soft); font-size: 15px; }
-  .nl-form { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+  .nl-form { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
   input {
     flex: 1; min-width: 200px; font: 15px var(--font-sans); padding: 12px 14px; border-radius: 10px;
     border: 1px solid var(--border); background: var(--bg); color: var(--text);
   }
   input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .compact { margin: 56px 0 0; }
+  .nl-msg { flex-basis: 100%; font-size: 14px; min-height: 0; }
+  .nl-msg:empty { display: none; }
+  .inline { grid-template-columns: 1fr; gap: 16px; padding: 24px 26px; margin: 48px 0 0; }
+  .inline h2 { font-size: 20px; margin-top: 0 !important; padding-top: 0 !important; }
+  .inline .nl-form { justify-content: flex-start; }
   @media (max-width: 760px) { .newsletter { grid-template-columns: 1fr; padding: 24px; } .nl-form { justify-content: flex-start; } }
 </style>
+
+<script>
+  // Submit in the background so readers stay on the article. Falls back to a normal form post if JS fails.
+  document.querySelectorAll<HTMLFormElement>('[data-nl-form]').forEach((form) => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = form.querySelector<HTMLElement>('.nl-msg')!;
+      const btn = form.querySelector<HTMLButtonElement>('button')!;
+      btn.disabled = true;
+      try {
+        await fetch(form.action, { method: 'POST', body: new FormData(form), mode: 'no-cors' });
+        msg.textContent = 'Almost done — check your inbox to confirm your subscription.';
+        form.querySelector('input')!.value = '';
+      } catch {
+        form.submit();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+</script>

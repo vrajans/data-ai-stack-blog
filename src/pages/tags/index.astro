@@ -14,11 +14,11 @@ const all = [...counts.entries()].sort((a, b) => b[1] - a[1]);
     <header class="page-head">
       <p class="eyebrow">Topics</p>
       <h1>Explore by topic</h1>
-      <p>The stack, layer by layer. Pick a track or any tag below.</p>
+      <p>The stack, layer by layer. New tracks appear here as their first articles are published.</p>
     </header>
     <div class="grid tracks">
       {
-        TRACKS.map((t) => (
+        TRACKS.filter((t) => (counts.get(t.tag) ?? 0) > 0).map((t) => (
           <a class="card track" href={`/tags/${t.tag}`}>
             <span class="icon" aria-hidden="true">{t.icon}</span>
             <h2>{t.title}</h2>

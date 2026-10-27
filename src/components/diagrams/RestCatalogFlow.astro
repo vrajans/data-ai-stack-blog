@@ -1,0 +1,48 @@
+---
+import Figure from '../mdx/Figure.astro';
+const steps = [
+  { y: 96, from: 'e', label: '1 · authenticate (OAuth2 / workload identity)', ret: false },
+  { y: 140, from: 'c', label: 'access token', ret: true },
+  { y: 188, from: 'e', label: '2 · load table sales.orders + request vended credentials', ret: false },
+  { y: 232, from: 'c', label: 'metadata location + schema + scoped, short-lived credentials', ret: true },
+  { y: 324, from: 'e', label: '4 · commit: requirements (expected snapshot) + updates', ret: false },
+  { y: 368, from: 'c', label: '200 OK: pointer swapped  ·  409: conflict → refresh, retry', ret: true },
+];
+const EX = 140, CX = 560, SX = 860;
+---
+
+<Figure label="Sequence diagram of the Iceberg REST catalog protocol: the engine authenticates, loads a table and receives scoped storage credentials, reads files directly from object storage, then commits by sending requirements and updates which the catalog applies atomically." caption="Figure 1 — How an engine talks to an Iceberg REST catalog. The catalog never touches data files; it hands out metadata and scoped credentials, and it is the single place where commits are serialized.">
+  <svg viewBox="0 0 960 410" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="rc-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow"></path></marker>
+      <marker id="rc-arr-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow-a"></path></marker>
+    </defs>
+    <rect x={EX - 100} y="14" width="200" height="50" rx="10" class="box"></rect>
+    <text x={EX} y="37" text-anchor="middle" class="t">Engine</text>
+    <text x={EX} y="54" text-anchor="middle" class="s">Spark · Trino · Snowflake · DuckDB…</text>
+    <rect x={CX - 110} y="14" width="220" height="50" rx="10" class="box-b"></rect>
+    <text x={CX} y="37" text-anchor="middle" class="t tb">Iceberg REST catalog</text>
+    <text x={CX} y="54" text-anchor="middle" class="s">names · pointers · policies</text>
+    <rect x={SX - 84} y="14" width="168" height="50" rx="10" class="box"></rect>
+    <text x={SX} y="37" text-anchor="middle" class="t">Object storage</text>
+    <text x={SX} y="54" text-anchor="middle" class="s">metadata + data files</text>
+
+    <line x1={EX} y1="64" x2={EX} y2="396" class="ln dash" style="opacity:.6"></line>
+    <line x1={CX} y1="64" x2={CX} y2="396" class="ln dash" style="opacity:.6"></line>
+    <line x1={SX} y1="64" x2={SX} y2="396" class="ln dash" style="opacity:.6"></line>
+
+    {steps.map((st) => (
+      <g>
+        {st.ret ? (
+          <line x1={CX - 4} y1={st.y} x2={EX + 6} y2={st.y} class="lna" marker-end="url(#rc-arr-a)"></line>
+        ) : (
+          <line x1={EX + 4} y1={st.y} x2={CX - 6} y2={st.y} class="ln" marker-end="url(#rc-arr)"></line>
+        )}
+        <text x={EX + 14} y={st.y - 8} class="s" style={`font-size:12px;${st.ret ? 'fill:var(--accent-ink)' : 'fill:var(--text)'}`}>{st.label}</text>
+      </g>
+    ))}
+
+    <line x1={EX + 4} y1="278" x2={SX - 6} y2="278" class="ln" marker-end="url(#rc-arr)"></line>
+    <text x={EX + 14} y="270" class="s" style="font-size:12px;fill:var(--text)">3 · read manifests &amp; data files directly with the scoped credentials (catalog is not in the data path)</text>
+  </svg>
+</Figure>
