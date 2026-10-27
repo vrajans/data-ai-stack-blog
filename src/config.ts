@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 export const SITE = {
   // After your first deploy, replace with your real URL (or custom domain)
-  url: 'https://data-ai-stack.varatha-51.workers.dev',
+  url: 'https://varath.dev',
   title: 'The Data & AI Stack',
   tagline: 'Deep, practical research on the end-to-end data & AI stack.',
   description:

@@ -1,0 +1,48 @@
+---
+import Figure from '../mdx/Figure.astro';
+const hubs = [
+  { x: 60, t: 'hub_customer', k: 'customer_hk · customer_id' },
+  { x: 370, t: 'hub_order', k: 'order_hk · order_id' },
+  { x: 680, t: 'hub_product', k: 'product_hk · sku' },
+];
+const sats = [
+  { x: 60, t: 'sat_customer_crm', s: 'name, segment, country' },
+  { x: 370, t: 'sat_order_shop', s: 'status, channel, total' },
+  { x: 680, t: 'sat_product_pim', s: 'name, brand, category' },
+];
+---
+
+<Figure label="Data Vault model for the retailer: hubs for customer, order and product business keys; links connecting order to customer and order to product; satellites holding descriptive history for each hub and link." caption="Figure 2 — The same business in Data Vault 2.x. Hubs hold business keys, links hold relationships, satellites hold history from each source. Every table is insert-only, which makes loading parallel and auditable.">
+  <svg viewBox="0 0 960 400" xmlns="http://www.w3.org/2000/svg">
+    {hubs.map((h) => (
+      <g>
+        <rect x={h.x} y="150" width="220" height="64" rx="12" class="box-b"></rect>
+        <text x={h.x + 110} y="177" text-anchor="middle" class="t tb" style="font-family:var(--font-mono);font-size:13.5px">{h.t}</text>
+        <text x={h.x + 110} y="198" text-anchor="middle" class="s" style="font-family:var(--font-mono)">{h.k}</text>
+        <line x1={h.x + 110} y1="214" x2={h.x + 110} y2="290" class="ln"></line>
+      </g>
+    ))}
+    {sats.map((s) => (
+      <g>
+        <rect x={s.x} y="290" width="220" height="64" rx="12" class="box-w"></rect>
+        <text x={s.x + 110} y="316" text-anchor="middle" class="t" style="font-family:var(--font-mono);font-size:13px">{s.t}</text>
+        <text x={s.x + 110} y="337" text-anchor="middle" class="s">{s.s} + load_date</text>
+      </g>
+    ))}
+    <rect x="200" y="30" width="230" height="64" rx="12" class="box-a"></rect>
+    <text x="315" y="57" text-anchor="middle" class="t ta" style="font-family:var(--font-mono);font-size:13.5px">link_order_customer</text>
+    <text x="315" y="78" text-anchor="middle" class="s" style="font-family:var(--font-mono)">order_hk · customer_hk</text>
+    <rect x="530" y="30" width="230" height="64" rx="12" class="box-a"></rect>
+    <text x="645" y="57" text-anchor="middle" class="t ta" style="font-family:var(--font-mono);font-size:13.5px">link_order_line</text>
+    <text x="645" y="78" text-anchor="middle" class="s" style="font-family:var(--font-mono)">order_hk · product_hk · line_no</text>
+    <line x1="260" y1="94" x2="170" y2="150" class="ln"></line>
+    <line x1="370" y1="94" x2="440" y2="150" class="ln"></line>
+    <line x1="590" y1="94" x2="520" y2="150" class="ln"></line>
+    <line x1="700" y1="94" x2="790" y2="150" class="ln"></line>
+    <rect x="800" y="30" width="146" height="64" rx="12" class="box-w"></rect>
+    <text x="873" y="57" text-anchor="middle" class="t" style="font-family:var(--font-mono);font-size:12px">sat_order_line</text>
+    <text x="873" y="78" text-anchor="middle" class="s">qty, price + load_date</text>
+    <line x1="760" y1="62" x2="800" y2="62" class="ln"></line>
+    <text x="16" y="388" class="s">Legend:  blue = hub (business key)  ·  green = link (relationship)  ·  amber = satellite (descriptive history)</text>
+  </svg>
+</Figure>

@@ -267,7 +267,7 @@ The medallion pattern tells you *how many hops*; it doesn't tell you *how to mod
 | **Data Vault 2.0** | Hubs (keys), links (relationships), satellites (history) | Auditable, handles change & many sources well | More tables and joins; needs a presentation layer on top |
 | **One Big Table (OBT)** | Wide, denormalized tables per use case | Simple for consumers; great with columnar engines | Duplication; definitions drift if not governed |
 
-A common, pragmatic combination: Data Vault or lightly modeled tables in silver for integration and history, Kimball-style stars or wide tables in gold for consumption, with a semantic layer on top. Part 5 of the series covers this in depth.
+A common, pragmatic combination: Data Vault or lightly modeled tables in silver for integration and history, Kimball-style stars or wide tables in gold for consumption, with a semantic layer on top. [Part 5 of the series](/blog/data-modeling-modern-stack) covers this in depth.
 
 ## Batch, streaming and everything in between
 
@@ -401,7 +401,7 @@ This article was the map. The next parts zoom in:
 2. [Warehouse vs Lake vs Lakehouse: A Decision Guide](/blog/warehouse-vs-lake-vs-lakehouse)
 3. [Open Table Formats Deep Dive: Iceberg, Delta, Hudi & DuckLake](/blog/open-table-formats-deep-dive)
 4. [Catalogs: The Metadata Control Plane](/blog/lakehouse-catalogs-metadata-control-plane)
-5. Data Modeling for the Modern Stack
+5. [Data Modeling for the Modern Stack](/blog/data-modeling-modern-stack)
 6. Batch, Streaming & Real-Time Architectures
 7. Data Mesh & Data Fabric in Practice
 8. Reference Architectures on AWS, Azure, GCP, Databricks & Snowflake

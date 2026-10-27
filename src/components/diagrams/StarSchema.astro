@@ -1,0 +1,39 @@
+---
+import Figure from '../mdx/Figure.astro';
+const dims = [
+  { x: 40, y: 30, t: 'dim_date', c: ['date_key (PK)', 'date, week, month', 'fiscal_quarter, is_holiday'] },
+  { x: 680, y: 30, t: 'dim_customer  (SCD 2)', c: ['customer_key (PK)', 'customer_id, segment, country', 'valid_from, valid_to, is_current'] },
+  { x: 40, y: 270, t: 'dim_product', c: ['product_key (PK)', 'sku, name, brand', 'category, subcategory'] },
+  { x: 680, y: 270, t: 'dim_channel', c: ['channel_key (PK)', 'channel (web, app, store)', 'region, store_name'] },
+];
+const FW = 300, FX = 330, FY = 110;
+---
+
+<Figure label="Star schema for an online retailer: a central fact table of order lines with foreign keys and measures, surrounded by date, customer, product and channel dimension tables." caption="Figure 1 — A star schema for our example retailer. The fact table holds measures at a declared grain (one row per order line); dimensions hold the descriptive context people filter and group by.">
+  <svg viewBox="0 0 960 400" xmlns="http://www.w3.org/2000/svg">
+    {dims.map((d) => {
+      const cx = d.x + 120, cy = d.y + 50;
+      return (
+        <g>
+          <line x1={cx} y1={cy} x2={FX + FW / 2} y2={FY + 90} class="ln"></line>
+        </g>
+      );
+    })}
+    {dims.map((d) => (
+      <g>
+        <rect x={d.x} y={d.y} width="240" height="100" rx="10" class="box-b" style="fill:var(--bg-elev)"></rect>
+        <rect x={d.x} y={d.y} width="240" height="28" rx="10" class="box-b"></rect>
+        <text x={d.x + 14} y={d.y + 19} class="t tb" style="font-size:13px;font-family:var(--font-mono)">{d.t}</text>
+        {d.c.map((c, j) => <text x={d.x + 14} y={d.y + 48 + j * 18} class="s" style="font-family:var(--font-mono);font-size:11.5px;fill:var(--text-soft)">{c}</text>)}
+      </g>
+    ))}
+    <rect x={FX} y={FY} width={FW} height="180" rx="12" class="box-a" style="fill:var(--bg-elev)"></rect>
+    <rect x={FX} y={FY} width={FW} height="32" rx="12" class="box-a"></rect>
+    <text x={FX + 16} y={FY + 21} class="t ta" style="font-size:13.5px;font-family:var(--font-mono)">fct_order_lines</text>
+    <text x={FX + FW - 14} y={FY + 21} text-anchor="end" class="s" style="font-size:11px">grain: 1 row / order line</text>
+    {['order_id, line_number', 'date_key → dim_date', 'customer_key → dim_customer', 'product_key → dim_product', 'channel_key → dim_channel', 'quantity, unit_price, discount', 'net_amount  (additive measure)'].map((c, j) => (
+      <text x={FX + 16} y={FY + 54 + j * 18} class="s" style={`font-family:var(--font-mono);font-size:11.5px;fill:${j >= 5 ? 'var(--accent-ink)' : 'var(--text-soft)'}`}>{c}</text>
+    ))}
+    <text x="480" y="390" text-anchor="middle" class="s">Conformed dimensions (same dim_customer, dim_date…) are shared by every fact table: orders, returns, web sessions, inventory snapshots.</text>
+  </svg>
+</Figure>

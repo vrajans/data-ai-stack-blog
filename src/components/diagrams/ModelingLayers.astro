@@ -1,0 +1,30 @@
+---
+import Figure from '../mdx/Figure.astro';
+const rows = [
+  { l: 'Bronze · raw', cls: 'box', m: 'Source-shaped tables, append-only, plus load metadata', t: 'No modeling — keep it replayable' },
+  { l: 'Silver · integrated', cls: 'box', m: 'Cleaned, typed, deduplicated entities with history; conformed keys', t: 'Normalized / 3NF-ish entities, or Data Vault when sources are many and audit matters' },
+  { l: 'Gold · presentation', cls: 'box-a', m: 'Facts at a declared grain + conformed dimensions (SCD 2 where needed)', t: 'Kimball dimensional models — the reusable core' },
+  { l: 'Serving', cls: 'box-b', m: 'Wide tables for specific workloads; metrics defined once', t: 'One Big Table marts, aggregates, feature tables + a semantic layer' },
+];
+---
+
+<Figure label="Recommended mapping of modeling techniques to medallion layers: bronze has no modeling, silver uses normalized entities or Data Vault, gold uses Kimball dimensional models, and the serving layer uses wide tables and a semantic layer." caption="Figure 3 — Models are not rivals; they belong to different layers. Each layer has one job, and the modeling technique follows from that job.">
+  <svg viewBox="0 0 960 360" xmlns="http://www.w3.org/2000/svg">
+    <text x="16" y="22" class="h">LAYER</text>
+    <text x="236" y="22" class="h">WHAT LIVES HERE</text>
+    <text x="606" y="22" class="h">MODELING TECHNIQUE</text>
+    {rows.map((r, i) => {
+      const y = 34 + i * 80;
+      return (
+        <g>
+          <rect x="16" y={y} width="200" height="68" rx="10" class={r.cls}></rect>
+          <text x="116" y={y + 40} text-anchor="middle" class="t" style="font-size:14px">{r.l}</text>
+          <rect x="226" y={y} width="370" height="68" rx="10" class="box" style="fill:var(--bg-elev)"></rect>
+          <foreignObject x="238" y={y + 8} width="350" height="56"><div style="font:500 13px/1.4 var(--font-sans);color:var(--text-soft)">{r.m}</div></foreignObject>
+          <rect x="606" y={y} width="338" height="68" rx="10" class={r.cls}></rect>
+          <foreignObject x="618" y={y + 8} width="318" height="56"><div style="font:600 13px/1.4 var(--font-sans);color:var(--text)">{r.t}</div></foreignObject>
+        </g>
+      );
+    })}
+  </svg>
+</Figure>

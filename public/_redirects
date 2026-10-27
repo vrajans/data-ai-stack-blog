@@ -1,8 +1,6 @@
 # Topic/series pages hidden until their first article is published (temporary redirects)
 /tags/data-engineering   /tags    302
 /tags/data-engineering/  /tags  302
-/tags/analytics          /tags    302
-/tags/analytics/  /tags  302
 /tags/machine-learning   /tags    302
 /tags/machine-learning/  /tags  302
 /tags/generative-ai      /tags    302
