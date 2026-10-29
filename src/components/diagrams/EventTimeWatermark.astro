@@ -1,0 +1,49 @@
+---
+import Figure from '../mdx/Figure.astro';
+// events: [event-time minute (x on top axis), arrival order position]
+const evs = [
+  { et: 0.2, at: 0.5, late: false },
+  { et: 0.6, at: 0.9, late: false },
+  { et: 0.4, at: 1.3, late: false },
+  { et: 1.3, at: 1.6, late: false },
+  { et: 1.1, at: 2.0, late: false },
+  { et: 1.7, at: 2.2, late: false },
+  { et: 0.7, at: 2.6, late: true },
+  { et: 2.4, at: 2.9, late: false },
+];
+const X0 = 120, PX = 230; // px per minute
+const ex = (m: number) => X0 + m * PX;
+---
+
+<Figure label="Event time versus arrival time: events arrive out of order; a watermark trails behind the newest event time and closes each one-minute window when it passes; an event that arrives after its window closed is late and handled by allowed lateness or a side output." caption="Figure 3 — Event time vs arrival time. Windows are defined on when things happened; the watermark (here, 30 seconds behind the newest event) decides when a window is complete. The red event belongs to minute 0 but arrived after that window closed.">
+  <svg viewBox="0 0 960 330" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="et-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow"></path></marker></defs>
+    <text x="16" y="44" class="h">EVENT TIME</text>
+    <text x="16" y="274" class="h">ARRIVAL TIME</text>
+    <line x1={X0} y1="60" x2="930" y2="60" class="ln" marker-end="url(#et-arr)"></line>
+    <line x1={X0} y1="250" x2="930" y2="250" class="ln" marker-end="url(#et-arr)"></line>
+    {[0, 1, 2, 3].map((m) => (
+      <g>
+        <line x1={ex(m)} y1="54" x2={ex(m)} y2="66" class="ln"></line>
+        <text x={ex(m)} y="36" text-anchor="middle" class="s">{`12:0${m}`}</text>
+      </g>
+    ))}
+    {[0, 1, 2].map((m) => (
+      <g>
+        <rect x={ex(m) + 3} y="72" width={PX - 6} height="26" rx="6" class={m === 0 ? 'box-a' : 'box'}></rect>
+        <text x={ex(m) + PX / 2} y="90" text-anchor="middle" class="s" style="fill:var(--text)">{`window 12:0${m}–12:0${m + 1}`}</text>
+      </g>
+    ))}
+    {evs.map((e) => (
+      <g>
+        <line x1={ex(e.et)} y1="104" x2={X0 + e.at * 270} y2="244" class="ln" style={`opacity:.55;${e.late ? 'stroke:#e5484d;opacity:1' : ''}`}></line>
+        <circle cx={ex(e.et)} cy="104" r="6" style={`fill:${e.late ? '#e5484d' : 'var(--accent)'}`}></circle>
+        <circle cx={X0 + e.at * 270} cy="250" r="6" style={`fill:${e.late ? '#e5484d' : 'var(--accent-2)'}`}></circle>
+      </g>
+    ))}
+    <line x1={X0 + 2.3 * 270} y1="150" x2={X0 + 2.3 * 270} y2="262" class="lna dash"></line>
+    <text x={X0 + 2.3 * 270 + 8} y="166" class="s ta" style="font-size:12px">watermark passes 12:01</text>
+    <text x={X0 + 2.3 * 270 + 8} y="182" class="s ta" style="font-size:12px">→ window 12:00 emitted</text>
+    <text x="940" y="290" text-anchor="end" class="s" style="font-size:12px;fill:#e5484d">late event → allowed lateness, update, or side output</text>
+  </svg>
+</Figure>

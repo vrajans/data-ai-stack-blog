@@ -1,0 +1,64 @@
+---
+import Figure from '../mdx/Figure.astro';
+---
+
+<Figure label="Streaming lakehouse with hot and cold paths: operational databases emit CDC and apps emit events into a durable log; a stream processor writes continuously into open lakehouse tables for BI, ML and batch modeling, and optionally feeds a real-time OLAP store or online store for sub-second serving to applications and agents." caption="Figure 2 — A streaming lakehouse with an optional hot path. The log is the backbone; open tables hold history for everything else; a hot store is added only for the few use cases that need sub-second answers.">
+  <svg viewBox="0 0 960 400" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="hc-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow"></path></marker>
+      <marker id="hc-arr-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow-a"></path></marker>
+    </defs>
+    <text x="16" y="24" class="h">SOURCES</text>
+    <rect x="16" y="40" width="150" height="58" rx="10" class="box"></rect>
+    <text x="91" y="65" text-anchor="middle" class="t" style="font-size:13px">Operational DBs</text>
+    <text x="91" y="84" text-anchor="middle" class="s">CDC (log-based)</text>
+    <rect x="16" y="112" width="150" height="58" rx="10" class="box"></rect>
+    <text x="91" y="137" text-anchor="middle" class="t" style="font-size:13px">Apps &amp; devices</text>
+    <text x="91" y="156" text-anchor="middle" class="s">events, clickstream</text>
+
+    <text x="200" y="24" class="h">LOG</text>
+    <rect x="200" y="56" width="160" height="98" rx="12" class="box-b"></rect>
+    <text x="280" y="88" text-anchor="middle" class="t tb" style="font-size:14px">Durable event log</text>
+    <text x="280" y="108" text-anchor="middle" class="s">Kafka · Redpanda</text>
+    <text x="280" y="125" text-anchor="middle" class="s">Kinesis · Pub/Sub</text>
+    <text x="280" y="142" text-anchor="middle" class="s">+ schema registry</text>
+    <line x1="166" y1="69" x2="196" y2="88" class="ln" marker-end="url(#hc-arr)"></line>
+    <line x1="166" y1="141" x2="196" y2="122" class="ln" marker-end="url(#hc-arr)"></line>
+
+    <text x="394" y="24" class="h">PROCESS</text>
+    <rect x="394" y="56" width="170" height="98" rx="12" class="box-a"></rect>
+    <text x="479" y="88" text-anchor="middle" class="t ta" style="font-size:14px">Stream processor</text>
+    <text x="479" y="108" text-anchor="middle" class="s">Flink · Spark Streaming</text>
+    <text x="479" y="125" text-anchor="middle" class="s">Kafka Streams · streaming DB</text>
+    <text x="479" y="142" text-anchor="middle" class="s">state · event time · watermarks</text>
+    <line x1="360" y1="105" x2="390" y2="105" class="ln" marker-end="url(#hc-arr)"></line>
+
+    <text x="610" y="24" class="h">HOT PATH (OPTIONAL) · SUB-SECOND</text>
+    <rect x="610" y="40" width="334" height="70" rx="12" class="box-w"></rect>
+    <text x="777" y="62" text-anchor="middle" class="t" style="font-size:13.5px">Real-time OLAP / online store</text>
+    <text x="777" y="80" text-anchor="middle" class="s">ClickHouse · Pinot · Druid · StarRocks · key-value</text>
+    <text x="777" y="98" text-anchor="middle" class="s" style="fill:var(--text)">→ read by apps, fraud checks and agents in milliseconds</text>
+    <path d="M564 85 C590 85 590 75 606 75" class="ln" marker-end="url(#hc-arr)"></path>
+
+    <text x="610" y="140" class="h">WARM / COLD · SECONDS TO MINUTES</text>
+    <rect x="610" y="152" width="334" height="70" rx="12" class="box-a"></rect>
+    <text x="777" y="180" text-anchor="middle" class="t ta" style="font-size:13.5px">Open lakehouse tables</text>
+    <text x="777" y="201" text-anchor="middle" class="s">Iceberg / Delta — bronze &amp; silver, full history</text>
+    <path d="M564 125 C590 125 590 187 606 187" class="lna" marker-end="url(#hc-arr-a)"></path>
+    <text x="280" y="178" text-anchor="middle" class="s" style="font-size:11.5px">or a managed topic → table</text>
+    <text x="280" y="194" text-anchor="middle" class="s" style="font-size:11.5px">service (Tableflow, Iceberg</text>
+    <text x="280" y="210" text-anchor="middle" class="s" style="font-size:11.5px">topics, Connect sink)</text>
+
+    <text x="16" y="268" class="h">CONSUME</text>
+    <rect x="610" y="280" width="334" height="56" rx="12" class="box"></rect>
+    <text x="777" y="304" text-anchor="middle" class="t" style="font-size:13px">Batch / incremental models → gold</text>
+    <text x="777" y="322" text-anchor="middle" class="s">dbt, SQL, Spark — as in Part 5</text>
+    <line x1="777" y1="222" x2="777" y2="276" class="ln" marker-end="url(#hc-arr)"></line>
+
+    <rect x="200" y="280" width="380" height="56" rx="12" class="box"></rect>
+    <text x="390" y="304" text-anchor="middle" class="t" style="font-size:13px">BI, ML training, analytics, agents</text>
+    <text x="390" y="322" text-anchor="middle" class="s">read governed lakehouse tables (seconds to minutes fresh)</text>
+    <line x1="606" y1="308" x2="584" y2="308" class="ln" marker-end="url(#hc-arr)"></line>
+    <text x="480" y="372" text-anchor="middle" class="s">One log, two speeds: the hot store keeps a recent window; the lakehouse keeps everything.</text>
+  </svg>
+</Figure>

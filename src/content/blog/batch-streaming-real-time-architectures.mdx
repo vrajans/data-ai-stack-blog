@@ -1,0 +1,243 @@
+---
+title: 'Batch, Streaming & Real-Time: When Real-Time Actually Pays Off'
+description: 'The latency ladder, CDC, Kafka, Flink, the streaming lakehouse and event-time correctness — and a framework for deciding how fresh your data must be.'
+pubDate: 2026-10-29
+tags: [data-architecture, streaming, data-engineering, lakehouse]
+series: data-architecture
+seriesOrder: 6
+ogImage: /og/batch-streaming-real-time-architectures.png
+---
+
+import Callout from '../../components/mdx/Callout.astro';
+import LatencyLadder from '../../components/diagrams/LatencyLadder.astro';
+import HotColdArchitecture from '../../components/diagrams/HotColdArchitecture.astro';
+import EventTimeWatermark from '../../components/diagrams/EventTimeWatermark.astro';
+
+"We need it in real time" is one of the most expensive sentences in data engineering. Sometimes it's exactly right: a fraud check that answers in two minutes is useless. Often it isn't: a dashboard refreshed every second is still read once a morning.
+
+Streaming technology has never been more capable or more accessible. Kafka runs without ZooKeeper, Flink and Spark both offer streaming SQL, managed services turn topics straight into lakehouse tables, and AI agents increasingly need fresh context. That makes the architectural question sharper, not easier: **how fresh does each piece of data really need to be, and what are you willing to pay for it?**
+
+This is Part 6 of the [Data Architecture series](/series/data-architecture). [Part 1](/blog/data-architecture-complete-guide) introduced Lambda and Kappa; [Part 3](/blog/open-table-formats-deep-dive) explained how open tables handle frequent commits; [Part 5](/blog/data-modeling-modern-stack) covered modeling. Here we cover the time dimension: batch, micro-batch, streaming and real-time — and how to choose.
+
+<Callout type="key" title="The short answer">
+**Default to batch or micro-batch.** Add **streaming** where seconds-to-minutes freshness changes a decision, and **sub-second real-time** only where a machine acts on the result immediately (fraud, pricing, personalization). Build it as a **streaming lakehouse**: one durable log, a stream processor writing to open tables, and a separate hot store only for the use cases that truly need milliseconds.
+</Callout>
+
+## First, the vocabulary
+
+A few terms cause most of the confusion in streaming discussions:
+
+- **Latency vs freshness.** *Latency* is how long a query or pipeline step takes. *Freshness* (or data delay) is how old the newest data is when someone reads it. A dashboard can load in 200 ms (low latency) and show data from last night (poor freshness).
+- **Bounded vs unbounded data.** Batch processes a bounded dataset with a beginning and end. Streaming processes an unbounded one that never "finishes".
+- **Event time vs processing time.** *Event time* is when something happened (a customer clicked); *processing time* is when your system saw it. Mobile devices, retries and outages mean they can differ by minutes or days.
+- **State.** Anything a stream processor must remember between events: running totals, open sessions, the latest row per key for joins. State is what makes streaming hard.
+- **Delivery guarantees.** *At-most-once* may lose data; *at-least-once* may duplicate it; *exactly-once* means every event affects results once — achieved through checkpointing plus transactional or idempotent sinks, not magic.
+
+## The latency ladder
+
+Every use case sits somewhere on a ladder of freshness. Each step up costs more:
+
+<LatencyLadder />
+
+| Tier | Freshness | Typical use cases | What it costs you |
+|---|---|---|---|
+| **Batch** | Hours to a day | Financial reporting, planning, most BI, model training | Compute only while jobs run; simplest to operate and backfill |
+| **Micro-batch** | Minutes | Operational dashboards, inventory, marketing triggers | Frequent small jobs; more small files to compact |
+| **Streaming** | Seconds | Alerts, live metrics, logistics tracking, fresh context for agents | Always-on compute, state management, checkpoint tuning |
+| **Real-time** | Sub-second | Fraud detection, payments, pricing, in-session personalization | All of the above plus a low-latency serving store and tight SLOs |
+
+A useful rule of thumb: **if a human reads the result, minutes are almost always enough.** People don't make better decisions from a dashboard that updates every second than from one that updates every five minutes. Seconds and milliseconds matter when *software* acts on the result — blocking a transaction, choosing a recommendation, triggering an automated workflow, or giving an agent current context.
+
+## The building blocks
+
+### Change data capture (CDC)
+
+Most valuable business data starts in operational databases. **Log-based CDC** reads the database's transaction log (for example, the Postgres write-ahead log or MySQL binlog) and emits every insert, update and delete as an event — with minimal load on the source and without missing deletes. Debezium is the best-known open-source implementation; most cloud platforms and ingestion vendors offer managed equivalents.
+
+Practical tips:
+
+- **Snapshot, then stream.** A CDC pipeline first copies the existing table, then switches to the change log without gaps.
+- **Preserve order per key.** Partition events by primary key so all changes to one row stay in order.
+- **Consider the outbox pattern.** Instead of capturing internal tables (whose schema the application team may change at will), applications write explicit business events to an *outbox* table that CDC publishes. It's a cleaner contract between producers and the data platform.
+
+### The durable event log
+
+The backbone of any streaming architecture is a **durable, replayable log**: Apache Kafka (and compatible platforms such as Redpanda), Amazon Kinesis, Google Pub/Sub or Azure Event Hubs. Producers append events to partitioned topics; consumers read at their own pace; retention lets you replay history after a bug fix.
+
+Kafka itself has modernized: **Kafka 4.0 (March 2025) removed ZooKeeper entirely**, so clusters run on the built-in KRaft consensus layer, and **share groups — queue-style consumption — became generally available with Kafka 4.2 in early 2026**, letting many consumers process one partition's messages for work-queue use cases. Pair the log with a **schema registry** so producers can't silently break consumers.
+
+### Stream processing engines
+
+- **Apache Flink** — the most complete engine for stateful streaming: event-time processing, large keyed state, exactly-once checkpoints and Flink SQL. The 2.x line has added **materialized tables** (declare a query and a freshness target; Flink builds and refreshes the pipeline) and AI functions such as `ML_PREDICT` for model inference in SQL (Flink 2.2, December 2025).
+- **Spark Structured Streaming** — micro-batch streaming on the Spark engine you may already run for batch, sharing code and tables. Apache Spark 4.1 adds a **real-time mode** for millisecond-scale latency; in open source it initially supports stateless queries with Kafka sources, with stateful operations on the roadmap.
+- **Kafka Streams** — a library for building streaming microservices directly on Kafka, without a separate cluster.
+- **Streaming databases** — systems such as RisingWave and Materialize maintain incrementally updated SQL views over streams, which is often simpler than writing a streaming job.
+
+### Serving stores
+
+Where results go depends on who reads them:
+
+- **Open lakehouse tables** (Iceberg, Delta) for history, BI and ML — fresh to seconds or minutes.
+- **Real-time OLAP databases** — ClickHouse, Apache Pinot, Apache Druid, StarRocks — for sub-second, high-concurrency analytics, especially user-facing.
+- **Key-value or online feature stores** for single-row lookups in milliseconds, such as a fraud model fetching a card's recent activity.
+
+## Architecture patterns in 2026
+
+### Pattern 1 — Batch and micro-batch ELT (the default)
+
+Scheduled or frequently triggered loads into the lakehouse, transformed with SQL. It's simple, cheap, easy to backfill, and right for the large majority of analytics. **Incremental processing** — only processing new or changed data, via CDC plus `MERGE`, dbt incremental models, or declarative incremental pipelines such as Snowflake Dynamic Tables, Databricks Lakeflow Declarative Pipelines or Flink materialized tables — can push this pattern to a few minutes of freshness without a full streaming stack.
+
+### Pattern 2 — The streaming lakehouse
+
+Events and CDC flow through the log into a stream processor that writes continuously into **open tables**. Streams and tables become two views of the same data: the same Iceberg or Delta tables serve BI, ML and batch models, but they're seconds to minutes fresh instead of hours. This is the modern successor to both Lambda (no duplicate batch codebase) and pure Kappa (history lives in cheap, queryable tables, not only in the log).
+
+### Pattern 3 — Hot/cold split
+
+When some consumers need sub-second answers, add a **hot path**: the stream processor (or the log directly) feeds a real-time OLAP or key-value store holding a recent window, while the lakehouse keeps full history. Applications and agents read the hot store; analysts read the lakehouse.
+
+<HotColdArchitecture />
+
+The cost is a second store to run and a seam to keep consistent. Add it per use case, not by default.
+
+### Pattern 4 — Incremental views over streams
+
+When the need is for continuously updated *results* rather than raw events — "current inventory per store", "open orders per customer" — a streaming database or Flink materialized table that maintains the view incrementally (and sinks it to the lakehouse) is often simpler than custom streaming code.
+
+## Streaming into open tables: the freshness floor
+
+Streaming into Iceberg or Delta has a built-in trade-off. Each **commit** makes new data visible — and creates new files and a new snapshot. Commit too often and you drown in small files and metadata; too rarely and data is stale.
+
+| Path into Iceberg | Typical freshness | Notes |
+|---|---|---|
+| **Flink sink** | ~10–60 s (commits on checkpoints) | Best fit for CDC with upserts; needs compaction |
+| **Spark Structured Streaming** | ~30 s – 2 min (one commit per trigger) | Great if you already run Spark; longer triggers mean bigger files |
+| **Kafka Connect Iceberg sink** | ~1–15 min | No code; fewer, larger commits |
+| **Broker-native / managed topic-to-table** (e.g. Confluent Tableflow, Redpanda Iceberg Topics) | Minutes | Least to operate; check compaction, cost and lock-in |
+
+*Ranges are typical for production settings, per a July 2026 survey of streaming-to-Iceberg options; your numbers depend on volume and tuning.*
+
+The arithmetic is worth internalizing: a 10-second commit interval means **8,640 commits per table per day**; a 1-second interval means 86,400. Every streaming table therefore needs **scheduled compaction and snapshot expiry** (see the maintenance section of [Part 3](/blog/open-table-formats-deep-dive)). If seconds aren't enough, don't fight the table format — add a hot path (Pattern 3) for the recent window.
+
+Here's a complete streaming job in Flink SQL: read orders from Kafka, compute revenue per minute by event time, and write to an Iceberg table through a REST catalog (see [Part 4](/blog/lakehouse-catalogs-metadata-control-plane)):
+
+```sql
+-- Commit to Iceberg once a minute (commits happen on checkpoints)
+SET 'execution.checkpointing.interval' = '60s';
+
+CREATE TABLE orders_src (
+  order_id     STRING,
+  customer_id  STRING,
+  amount       DECIMAL(12, 2),
+  order_ts     TIMESTAMP(3),
+  WATERMARK FOR order_ts AS order_ts - INTERVAL '30' SECOND
+) WITH (
+  'connector' = 'kafka',
+  'topic' = 'shop.orders',
+  'properties.bootstrap.servers' = 'broker:9092',
+  'scan.startup.mode' = 'earliest-offset',
+  'format' = 'json'
+);
+
+CREATE CATALOG lake WITH (
+  'type' = 'iceberg',
+  'catalog-type' = 'rest',
+  'uri' = 'https://catalog.example.com/api/catalog',
+  'warehouse' = 'analytics'
+);
+
+INSERT INTO lake.sales.revenue_per_minute
+SELECT window_start, window_end, SUM(amount) AS revenue, COUNT(*) AS orders
+FROM TABLE(
+  TUMBLE(TABLE orders_src, DESCRIPTOR(order_ts), INTERVAL '1' MINUTE))
+GROUP BY window_start, window_end;
+```
+
+## Correctness: the part that makes streaming hard
+
+Getting data to move fast is the easy part. Getting it *right* while it moves is where most of the engineering effort goes.
+
+### Event time, watermarks and late data
+
+Aggregations such as "revenue per minute" must use **event time**, or a network delay will move revenue into the wrong minute. But in an unbounded stream, how do you know a minute is complete? A **watermark** is the engine's estimate that "no more events older than *T* are expected"; when it passes the end of a window, the window's result is emitted.
+
+<EventTimeWatermark />
+
+Events that arrive after their window closed are **late**. You choose the policy: allow some lateness and update results, send late events to a side output for reconciliation, or drop them. Watermarks trade completeness for timeliness — a 30-second watermark emits faster but treats more events as late than a 10-minute one.
+
+### Exactly-once, end to end
+
+Engines like Flink provide exactly-once *state* through checkpoints. End-to-end exactly-once also requires the sink to cooperate: either **transactional** (writes become visible only when the checkpoint completes — how the Iceberg and Kafka sinks work) or **idempotent** (writing the same result twice has no extra effect, for example upserts by key). Design sinks for idempotency even when the engine promises exactly-once; it makes replays and backfills safe.
+
+### CDC semantics and schema change
+
+Apply changes **in order per key**, handle **deletes** explicitly (tombstones, deletion vectors, or soft-delete flags), and remember that an update may arrive before the snapshot of its row finished loading. For schema change, enforce compatibility in the schema registry and treat breaking changes as a **data contract** negotiation with the producing team, not a surprise at 2 a.m.
+
+### Reprocessing
+
+Bugs happen. Keep enough retention in the log — or keep raw events in bronze tables — to **replay** after a fix, and make sure your jobs can run in "backfill" mode without double-counting.
+
+## The real cost of real-time
+
+Streaming's costs are easy to underestimate because they're spread across teams:
+
+- **Always-on compute.** A batch job runs for 20 minutes; a streaming job runs 24/7, including weekends and quiet nights.
+- **State and storage.** Large keyed state needs fast storage and checkpoints; open tables need constant compaction.
+- **Operations.** Lag monitoring, checkpoint failures, rebalances, poison messages and schema breaks — usually with an on-call rotation.
+- **Skills.** Event time, state and exactly-once semantics are genuinely harder than batch SQL.
+- **Two serving stores** if you add a hot path.
+
+That doesn't make streaming wrong — it makes it a business case. Part 10 of this series covers FinOps in depth; for now, ask each real-time request: *what decision improves, and what's it worth per minute of freshness?*
+
+## A decision framework
+
+For each use case, answer five questions:
+
+1. **Who or what consumes it?** A person reading a dashboard, or software acting automatically?
+2. **What freshness changes the outcome?** If the result were 15 minutes old, what would go wrong — concretely?
+3. **What's the cost of being wrong vs being late?** Fraud and payments punish lateness; finance punishes wrong numbers.
+4. **Do you need history, the latest state, or an immediate reaction?** History → lakehouse; latest state → incremental views; reaction → hot path.
+5. **Can the team operate it?** Managed services reduce, but don't remove, the operational burden.
+
+| Use case | Freshness needed | Recommended pattern |
+|---|---|---|
+| Board and finance reporting | Daily | Batch ELT |
+| Sales and operations dashboards | 5–15 minutes | Micro-batch / incremental models |
+| Inventory and order status | 1–5 minutes | CDC + streaming lakehouse or incremental views |
+| Customer-support or ops copilot context | Seconds to minutes | Streaming lakehouse (+ hot store if per-customer lookups) |
+| Fraud detection, payment risk | Sub-second | Stream processing + online store (hot path) |
+| In-session personalization | Sub-second | Event stream + online feature store |
+| ML model training | Hours to daily | Batch from lakehouse tables |
+
+## Common anti-patterns
+
+- **Real-time by default** — streaming everything because the tools make it possible.
+- **Processing-time aggregations** that silently misplace events when systems lag.
+- **Committing to open tables every second** with no compaction plan.
+- **No replay strategy**, so every bug fix means data loss or manual patching.
+- **Raw database tables as public contracts**, so any application schema change breaks pipelines.
+- **Two codebases for the same logic** (the old Lambda trap) instead of one streaming lakehouse.
+- **A hot store with no owner**, slowly drifting from the lakehouse's numbers.
+
+## Key takeaways
+
+- Distinguish **latency** from **freshness**, and **event time** from **processing time**.
+- Use the **latency ladder**: batch → micro-batch → streaming → real-time; each step up costs more in compute, state and on-call.
+- **Humans rarely need better than minutes; machines acting on results may need milliseconds.**
+- The modern default for fresh data is the **streaming lakehouse**: CDC and events → durable log → stream processor → open tables — plus a **hot path** only where sub-second answers pay off.
+- Streaming into Iceberg/Delta has a **freshness floor** set by commit intervals and small files; compaction is mandatory.
+- Correctness lives in **watermarks, late-data policy, idempotent sinks, ordered CDC and replayability**.
+
+## Up next
+
+**Part 7 — Data Mesh & Data Fabric in Practice.** With the technical building blocks covered, we turn to the organization: domain ownership, data products, federated governance, and what years of real-world mesh adoption have taught us. Follow along on the [series page](/series/data-architecture), via [RSS](/rss.xml) or by email.
+
+## References and further reading
+
+- Tyler Akidau, Slava Chernyak & Reuven Lax — *Streaming Systems* (O'Reilly, 2018).
+- Jay Kreps — [Questioning the Lambda Architecture](https://www.oreilly.com/radar/questioning-the-lambda-architecture/) (2014).
+- [The State of Streaming to Apache Iceberg in July 2026](https://amdatalakehouse.substack.com/p/the-state-of-streaming-to-apache).
+- [Apache Kafka 4.x: what KRaft and ZooKeeper removal mean](https://andrewbaker.ninja/2026/02/17/apache-kafka-4-x-what-kraft-and-zookeeper-removal-mean/) and Confluent — [Kafka queue semantics GA with the share consumer API](https://www.confluent.io/blog/kafka-queue-semantics-share-consumer-ga/) (March 2026).
+- [Apache Flink 2.2.0 release announcement](https://flink.apache.org/2025/12/04/apache-flink-2.2.0-advancing-real-time-data--ai-and-empowering-stream-processing-for-the-ai-era/) (December 2025).
+- Databricks — [Introducing Real-Time Mode in Apache Spark Structured Streaming](https://www.databricks.com/blog/introducing-real-time-mode-apache-sparktm-structured-streaming) and [Structured Streaming real-time mode: a practical look](https://sparkingscala.com/latest/2026/03/28/structured-streaming-real-time-mode/).
+- Confluent — [Tableflow: turn Kafka topics into Iceberg tables](https://www.confluent.io/blog/tableflow-kafka-iceberg/).
+- [Debezium documentation](https://debezium.io/documentation/) · [Apache Flink documentation](https://nightlies.apache.org/flink/flink-docs-stable/).
