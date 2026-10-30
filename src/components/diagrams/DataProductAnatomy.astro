@@ -1,0 +1,47 @@
+---
+import Figure from '../mdx/Figure.astro';
+const inside = [
+  ['Transformation code', 'versioned, tested, CI/CD'],
+  ['Data', 'tables, files, streams'],
+  ['Contract', 'schema, quality, SLOs'],
+  ['Metadata & docs', 'meaning, lineage, examples'],
+  ['Policies', 'access, privacy, retention'],
+];
+const outs = [['Tables', 'Iceberg / Delta via catalog'], ['Stream', 'events for real-time use'], ['API / semantic', 'metrics, lookups, agents']];
+---
+
+<Figure label="Anatomy of a data product: input ports bring data from sources or other products; inside are code, data, a contract, metadata and policies, owned by a named domain team; output ports expose tables, streams and APIs; all built on a self-serve platform." caption="Figure 1 — Anatomy of a data product. It's not just a table: it's code, data, a contract, metadata and policies with a named owner — exposed through stable output ports and built on shared platform capabilities.">
+  <svg viewBox="0 0 960 390" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="dp-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow"></path></marker></defs>
+    <text x="16" y="24" class="h">INPUT PORTS</text>
+    {['Operational source (CDC)', 'Upstream data product', 'External / SaaS feed'].map((t, i) => (
+      <g>
+        <rect x="16" y={40 + i * 74} width="190" height="58" rx="10" class="box"></rect>
+        <text x="111" y={74 + i * 74} text-anchor="middle" class="t" style="font-size:12.5px">{t}</text>
+        <line x1="206" y1={69 + i * 74} x2="252" y2={69 + i * 74} class="ln" marker-end="url(#dp-arr)"></line>
+      </g>
+    ))}
+    <rect x="256" y="14" width="440" height="270" rx="16" class="box-a" style="fill:var(--bg-elev)"></rect>
+    <text x="276" y="42" class="t ta" style="font-size:15px">Data product: orders</text>
+    <text x="676" y="42" text-anchor="end" class="s">owner: Commerce domain team</text>
+    {inside.map((r, i) => (
+      <g>
+        <rect x="276" y={56 + i * 44} width="400" height="36" rx="8" class="box-a"></rect>
+        <text x="292" y={79 + i * 44} class="t" style="font-size:13px">{r[0]}</text>
+        <text x="660" y={79 + i * 44} text-anchor="end" class="s">{r[1]}</text>
+      </g>
+    ))}
+    <text x="740" y="24" class="h">OUTPUT PORTS</text>
+    {outs.map((o, i) => (
+      <g>
+        <line x1="696" y1={69 + i * 74} x2="736" y2={69 + i * 74} class="ln" marker-end="url(#dp-arr)"></line>
+        <rect x="740" y={40 + i * 74} width="204" height="58" rx="10" class="box-b"></rect>
+        <text x="842" y={64 + i * 74} text-anchor="middle" class="t tb" style="font-size:13px">{o[0]}</text>
+        <text x="842" y={83 + i * 74} text-anchor="middle" class="s">{o[1]}</text>
+      </g>
+    ))}
+    <rect x="16" y="304" width="928" height="70" rx="12" class="box"></rect>
+    <text x="480" y="332" text-anchor="middle" class="t" style="font-size:14px">Self-serve platform</text>
+    <text x="480" y="354" text-anchor="middle" class="s">storage &amp; open tables · catalog · pipelines &amp; CI · contract checks · access policies · observability · cost reporting</text>
+  </svg>
+</Figure>

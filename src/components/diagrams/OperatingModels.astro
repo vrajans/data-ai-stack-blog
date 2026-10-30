@@ -1,0 +1,42 @@
+---
+import Figure from '../mdx/Figure.astro';
+const W = 296, G = 20, X0 = 14;
+const models = [
+  { t: 'Centralized', s: 'one data team builds everything', pro: 'Consistent, efficient at small scale', con: 'Bottleneck and lost domain context as demand grows', hub: 'Central data team', hubSub: 'ingest · model · serve', domains: ['Sales', 'Ops', 'Finance'], dashed: true },
+  { t: 'Hub-and-spoke', s: 'the pragmatic middle', pro: 'Shared core + domain-owned products', con: 'Needs clear rules on who owns what', hub: 'Platform & core data', hubSub: 'paved roads · shared entities', domains: ['Sales', 'Ops', 'Finance'], dashed: false, partial: true },
+  { t: 'Data mesh', s: 'domains own their data products', pro: 'Scales ownership with the business', con: 'Needs strong platform, culture and governance-as-code', hub: 'Self-serve platform', hubSub: 'infrastructure · policies as code', domains: ['Sales', 'Ops', 'Finance'], dashed: false },
+];
+---
+
+<Figure label="Three operating models: centralized, where one data team builds everything for domains; hub-and-spoke, where a platform team owns shared core data and some domains publish their own products; and data mesh, where all domains own data products on a self-serve platform." caption="Figure 3 — Three operating models. Most organizations that 'do mesh' successfully end up in the middle: a strong platform hub, with ownership moving to domains as they mature.">
+  <svg viewBox="0 0 960 340" xmlns="http://www.w3.org/2000/svg">
+    {models.map((m, i) => {
+      const x = X0 + i * (W + G);
+      return (
+        <g>
+          <rect x={x} y="8" width={W} height="324" rx="12" class="box" style="fill:var(--bg-elev)"></rect>
+          <text x={x + 16} y="36" class="t" style="font-size:15px">{m.t}</text>
+          <text x={x + 16} y="55" class="s">{m.s}</text>
+          {m.domains.map((d, j) => {
+            const owns = i === 2 || (i === 1 && j < 2);
+            return (
+              <g>
+                <rect x={x + 16 + j * 92} y="72" width="84" height="56" rx="8" class={owns ? 'box-a' : 'box'}></rect>
+                <text x={x + 58 + j * 92} y="96" text-anchor="middle" class="t" style="font-size:12.5px">{d}</text>
+                <text x={x + 58 + j * 92} y="114" text-anchor="middle" class="s" style="font-size:11px">{owns ? 'owns product' : 'requests data'}</text>
+                <line x1={x + 58 + j * 92} y1="128" x2={x + 148} y2="166" class={m.dashed ? 'ln dash' : 'ln'}></line>
+              </g>
+            );
+          })}
+          <rect x={x + 16} y="168" width="264" height="54" rx="10" class="box-b"></rect>
+          <text x={x + 148} y="191" text-anchor="middle" class="t tb" style="font-size:13px">{m.hub}</text>
+          <text x={x + 148} y="209" text-anchor="middle" class="s">{m.hubSub}</text>
+          <text x={x + 16} y="246" class="h ta">WORKS WELL</text>
+          <foreignObject x={x + 12} y="250" width={W - 24} height="34"><div style="font:600 12.5px/1.35 var(--font-sans);color:var(--text)">{m.pro}</div></foreignObject>
+          <text x={x + 16} y="294" class="h" style="fill:var(--warn)">WATCH OUT</text>
+          <foreignObject x={x + 12} y="298" width={W - 24} height="34"><div style="font:500 12.5px/1.35 var(--font-sans);color:var(--text-soft)">{m.con}</div></foreignObject>
+        </g>
+      );
+    })}
+  </svg>
+</Figure>

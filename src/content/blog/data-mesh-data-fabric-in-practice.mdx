@@ -1,0 +1,249 @@
+---
+title: 'Data Mesh & Data Fabric in Practice: What Worked, What Didn''t'
+description: 'Data mesh and data fabric after the hype: data products, contracts, federated governance, operating models — and a practical roadmap for your organization.'
+pubDate: 2026-10-30
+tags: [data-architecture, data-mesh, data-governance, data-products]
+series: data-architecture
+seriesOrder: 7
+ogImage: /og/data-mesh-data-fabric-in-practice.png
+---
+
+import Callout from '../../components/mdx/Callout.astro';
+import OperatingModels from '../../components/diagrams/OperatingModels.astro';
+import DataProductAnatomy from '../../components/diagrams/DataProductAnatomy.astro';
+import MeshFabricLayers from '../../components/diagrams/MeshFabricLayers.astro';
+
+Between roughly 2019 and 2023, "data mesh" and "data fabric" were two of the most debated ideas in data. Conference talks promised that one or the other would end the central data team bottleneck forever. Vendors rebranded products overnight. Many organizations launched ambitious programs — and a fair number quietly stalled.
+
+By 2026 the dust has settled, and the picture is more useful than the hype. Some ideas from both camps became mainstream practice almost everywhere: **data products, data contracts, policy-as-code and metadata-driven automation**. Others turned out to be expensive to implement and only worth it for certain organizations.
+
+This is Part 7 of the [Data Architecture series](/series/data-architecture). Parts 2–6 covered the *technical* architecture — storage, formats, catalogs, models and streaming. This part covers the *organizational* architecture: who owns data, how it's shared as products, and how governance scales.
+
+<Callout type="key" title="The short answer">
+**Data mesh is an operating model; data fabric is a metadata-driven capability layer.** They're complementary, not rivals. Almost every organization should adopt **data products with named owners, data contracts and governance-as-code**. Full decentralization of data ownership pays off mainly in large organizations with several data-capable domains — most land on a **hub-and-spoke** model with a strong central platform.
+</Callout>
+
+## Why central data teams hit a wall
+
+The classic setup — one central team ingests, models and serves data for the whole business — works well at small scale. It breaks in predictable ways as the organization grows:
+
+- **The backlog.** Every new question queues behind every other team's request. Lead times stretch from days to months.
+- **Lost context.** The central team doesn't know why the logistics system records a "delivered" status twice, or what finance means by "net revenue". Domain knowledge lives in the domains.
+- **Unclear ownership.** When a source system changes, the people who changed it don't feel responsible for the broken dashboards downstream.
+- **Scaling by headcount.** The only lever is hiring more central data engineers — who still lack the domain context.
+
+Data mesh and data fabric are two different responses to this problem. Mesh changes **who** is responsible. Fabric changes **how much** of the integration and governance work can be automated with metadata.
+
+## Data mesh, revisited
+
+Zhamak Dehghani introduced data mesh in 2019 and set out its four principles in 2020 (and in her 2022 book *Data Mesh*). [Part 1](/blog/data-architecture-complete-guide) summarized them; here's what each means in practice.
+
+### 1. Domain ownership
+
+The teams closest to the data own it as an analytical asset: the commerce team owns order data, logistics owns shipment data. Domains typically publish three kinds of data product:
+
+- **Source-aligned** — faithful, cleaned representations of what a domain's systems record (orders, shipments, payments).
+- **Aggregate** — combine several sources around a core concept (a unified customer view).
+- **Consumer-aligned** — built for a specific use (a churn-model feature set, a finance reporting mart).
+
+### 2. Data as a product
+
+A data product isn't just a table. Dehghani describes products that are **discoverable, addressable, understandable, trustworthy, natively accessible, interoperable, valuable on their own and secure**. In practice, a data product bundles code, data, a contract, metadata and policies, with a named owner and service levels.
+
+<DataProductAnatomy />
+
+### 3. Self-serve data platform
+
+Domains shouldn't each build their own storage, pipelines and access control. A central platform team provides **paved roads**: templates for creating a data product, storage and open tables, a catalog, CI/CD, contract checks, observability and cost reporting — everything covered in Parts 2–6, packaged so domain teams can use it without becoming infrastructure experts.
+
+### 4. Federated computational governance
+
+Global rules — naming, interoperability standards, privacy classification, retention, access policies — are agreed jointly by domains and central functions, and then **enforced automatically by the platform** ("computational"), not by review committees. This is the principle most organizations found hardest.
+
+## Data contracts: the most widely adopted idea
+
+If one practice from the mesh world has spread everywhere — including organizations that never used the word "mesh" — it's the **data contract**: a machine-readable agreement between a data producer and its consumers about schema, meaning, quality and service levels.
+
+The industry has converged on an open standard. The **Open Data Contract Standard (ODCS)** and its sibling the **Open Data Product Standard (ODPS)** are maintained by the Bitol project under the Linux Foundation AI & Data. ODCS v3.2.0 and ODPS v1.1.0 were released in September 2026, adding — among other things — a `context` block of instructions and constraints aimed at consumers *and AI agents*, `semanticType` to mark columns as measures or dimensions, and Apache Iceberg (via the REST catalog) as a server type.
+
+Here's a minimal contract for the orders product:
+
+```yaml
+apiVersion: v3.2.0
+kind: DataContract
+id: 7c1d9f2e-4b8a-4f61-9e7d-2a5c3b8f0d11
+name: orders
+version: 1.2.0
+status: active
+domain: commerce
+description:
+  purpose: One row per order line for analytics, finance and ML features.
+  limitations: Excludes test orders and internal staff purchases.
+schema:
+  - name: fct_order_lines
+    logicalType: object
+    physicalType: table
+    description: One row per order line. Grain is order_id + line_number.
+    quality:
+      - id: order_lines_daily_volume
+        metric: rowCount
+        mustBeBetween: [1000, 500000]
+    properties:
+      - name: order_line_key
+        logicalType: string
+        primaryKey: true
+        required: true
+      - name: customer_id
+        logicalType: string
+        required: true
+        classification: restricted
+        quality:
+          - id: customer_id_no_nulls
+            metric: nullValues
+            mustBe: 0
+      - name: net_amount
+        logicalType: number
+        description: Net amount in USD after discounts, before tax.
+slaProperties:
+  - id: freshness
+    property: latency
+    value: 1
+    unit: d
+    element: fct_order_lines.order_ts
+```
+
+The contract lives in version control next to the product's code. CI checks proposed changes for breaking schema changes, and the platform runs the quality rules and SLA checks continuously, alerting the owning team — not a central data team — when something breaks.
+
+<Callout type="tip" title="Start with contracts, even without a mesh">
+Contracts pay off in any operating model. Begin with the five to ten most-used datasets: write down grain, owner, schema, key quality rules and freshness. Breaking changes become negotiations instead of incidents.
+</Callout>
+
+## What worked and what didn't
+
+Several years of real-world adoption produced consistent lessons. Thoughtworks — whose consultants coined and popularized the term — summarized them in January 2026 in *The state of data mesh in 2026: from hype to hard-won maturity*:
+
+| What worked | What failed |
+|---|---|
+| Starting small with urgent, high-value business problems | Spending months searching for the "perfect" first use case |
+| Iterating on domain boundaries as the business changes | Trying to define permanent domain boundaries upfront ("analysis paralysis") |
+| Turning the central data office into an enabling center of excellence | Domains that were really IT teams renamed (an "SAP domain") without business ownership |
+| A hybrid platform: shared infrastructure, domain choice for last-mile tools | Building a complete platform first, with large upfront investment, before proving value |
+| Policy-as-code enforced by the platform | Committee-based governance |
+| Contract-driven consumption with SLOs and quality dashboards | Renaming project managers as "data product owners" without training |
+| Reusable data products serving many consumers | One data product per use case, limiting reuse |
+
+The article's central conclusion matches what most practitioners report: *data mesh is an organizational transformation, not merely a technical one*, and it cannot be bought off the shelf. It also needs long-term funding — project-based budgets clash with the idea of products that live for years.
+
+Industry analysts were skeptical early on: Gartner's 2022 Hype Cycle for Data Management rated data mesh as likely to become "obsolete before plateau". In a sense both sides were right. Relatively few organizations run a "pure" mesh; but its core ideas — products, contracts, domain ownership and computational governance — have been absorbed into mainstream practice under other names.
+
+## Data fabric: what it actually is
+
+Data fabric is often presented as mesh's rival. It's better understood as answering a different question.
+
+Gartner describes data fabric as an emerging data management *design* — not a single product — that uses **knowledge graphs, semantics and active-metadata-based automation** to speed up data access and sharing. In plain terms, a fabric continuously collects metadata from across your systems (schemas, lineage, usage, quality, classifications), analyzes it, and uses it to *automate* work: suggesting joins and datasets, classifying sensitive columns, propagating policies, alerting on quality or cost anomalies, and connecting data across platforms through virtualization or federation.
+
+Typical building blocks:
+
+- **Catalog and search** across all platforms, not just one.
+- **End-to-end lineage**, ideally column-level, collected automatically (for example via OpenLineage).
+- **Active metadata** — metadata that triggers actions, not just documentation.
+- **Semantics** — business glossaries, ontologies or knowledge graphs that connect technical assets to business concepts.
+- **A policy engine** that applies classification-driven access rules everywhere.
+- **Virtualization or federation** to query data where it lives when moving it isn't worth it.
+
+<Callout type="note" title="Don't confuse the concept with a product name">
+Microsoft Fabric is a product (a SaaS analytics platform built around OneLake). "Data fabric" is an architectural concept that many vendors implement in different ways. A product can help you build a fabric, but buying one doesn't give you one.
+</Callout>
+
+## Mesh and fabric together
+
+| | Data mesh | Data fabric |
+|---|---|---|
+| **Core question** | Who owns and is accountable for data? | How is data found, connected and governed automatically? |
+| **Primary lever** | Organization, ownership, product thinking | Metadata, automation, semantics |
+| **Unit of value** | Data product | Connected, governed metadata graph |
+| **Governance** | Federated, computational | Centralized policy, automated enforcement |
+| **Biggest risk** | Culture change stalls; inconsistent products | Becomes an expensive layer nobody uses |
+| **Best fit** | Large organizations with capable domains | Many heterogeneous systems that can't be consolidated |
+
+They fit together naturally: the fabric's catalog, lineage, active metadata and policy engine are exactly what a mesh's *self-serve platform* and *computational governance* need. In the most successful setups, domains own products (mesh), and the platform makes those products discoverable, connected and governed automatically (fabric).
+
+<MeshFabricLayers />
+
+## Choosing your operating model
+
+The real decision isn't "mesh or fabric?" It's how much ownership to move to domains, and how fast.
+
+<OperatingModels />
+
+| Signal | Points toward centralized | Points toward hub-and-spoke | Points toward full mesh |
+|---|---|---|---|
+| **Organization size** | Under ~200 people, few domains | Several business units | Many autonomous business units |
+| **Domain data skills** | Few or none | Some domains strong, others not | Most domains have engineers and analysts |
+| **Central team backlog** | Manageable | Growing, specific domains waiting | Chronic bottleneck everywhere |
+| **Platform maturity** | Early | Paved roads exist for core use cases | Self-serve platform with automated governance |
+| **Regulatory pressure** | Any | Any — governance-as-code is essential | High pressure demands very mature automation |
+
+**Our recommendation for most organizations:** start centralized or hub-and-spoke with **product thinking from day one** — named owners, contracts, SLOs and documentation for important datasets. Move ownership to a domain when it has (a) people who can build and run data products, (b) consumers outside the domain, and (c) a business leader willing to own the outcome.
+
+## A practical roadmap
+
+**First 90 days**
+
+1. **Pick two or three domains** with urgent, valuable use cases and willing leaders — not the "most important" domains in the abstract.
+2. **Define what a data product is in your organization**: required metadata, contract fields, SLOs, ownership, and the product types you'll support.
+3. **Ship a thin paved road**: a template that creates a product's repository, pipeline, tables, catalog entry and contract checks in one step.
+4. **Write contracts** for the first products and enforce them in CI.
+5. **Codify three to five global policies** (PII classification, access by role, retention, naming) in the platform.
+
+**Months 3–12**
+
+- Grow the platform based on what product teams actually struggle with — treat it as a product with its own roadmap and users.
+- Add automated lineage, quality monitoring and cost reporting per product (the fabric capabilities).
+- Onboard domains one at a time; move central engineers into domains where it helps.
+- Publish a **data product marketplace** — the catalog view of certified products, owners and SLOs.
+
+**Measure what matters**
+
+- **Lead time** to create a new data product or change an existing one.
+- **Reuse**: consumers per data product (higher is better than more products).
+- **Reliability**: contract violations, incidents and time-to-resolve per product.
+- **Trust and adoption**: share of dashboards and models built on certified products.
+- **Cost per product**, visible to the owning domain.
+
+## Data products in the AI era
+
+AI agents and LLM applications raise the value of everything above. A well-described data product — with a contract, semantic types, examples and usage constraints — is exactly the context an agent needs to use data correctly. ODCS's new `context` block makes that explicit: producers can write instructions and constraints *for* AI consumers. Thoughtworks' 2026 review similarly describes "dual-use" data products that serve both analytics and AI, and treats data products as a prerequisite for production-grade AI.
+
+The practical implication: when you design a data product, **design it for machine consumers too** — clear semantics, stable interfaces, governed access for non-human identities and documented limitations. [Part 9](/series/data-architecture) of this series covers AI-ready architecture in detail.
+
+## Anti-patterns to avoid
+
+- **"Mesh" as a reorganization slide** — domains renamed, nothing else changed.
+- **Platform first, value later** — a year of infrastructure before the first product ships.
+- **Governance by committee** — policies in documents rather than enforced in code.
+- **Data products without consumers** — publishing for the sake of a target count.
+- **A fabric as shelfware** — buying a catalog or "fabric platform" without owners who curate metadata.
+- **Duplicated core entities** — five domains each publishing their own "customer" with no shared keys.
+- **Project funding for products** — products need long-lived teams and budgets.
+
+## Key takeaways
+
+- **Mesh is an operating model; fabric is a metadata-driven capability layer.** They solve different problems and work best together.
+- The mesh ideas that became universal: **data products, named owners, data contracts and governance-as-code**.
+- **Data contracts are standardizing** around ODCS v3 and ODPS (Bitol, Linux Foundation AI & Data) — adopt them even without a mesh.
+- Real-world lessons: start small with urgent business problems, iterate on domain boundaries, avoid platform-first and committee governance, and fund products long-term.
+- Most organizations land on **hub-and-spoke**: a strong platform and core data team, with ownership moving to domains as they mature.
+- Design data products for **AI consumers** as well as humans.
+
+## Up next
+
+**Part 8 — Reference Architectures: AWS, Azure, GCP, Databricks & Snowflake.** We'll map the blueprint from this series onto each major platform: which services fill each layer, where the open standards fit, and the gotchas. Follow along on the [series page](/series/data-architecture), via [RSS](/rss.xml) or by email.
+
+## References and further reading
+
+- Zhamak Dehghani — [How to Move Beyond a Monolithic Data Lake to a Distributed Data Mesh](https://martinfowler.com/articles/data-monolith-to-mesh.html) (2019), [Data Mesh Principles and Logical Architecture](https://martinfowler.com/articles/data-mesh-principles.html) (2020), and *Data Mesh: Delivering Data-Driven Value at Scale* (O'Reilly, 2022).
+- Thoughtworks — [The state of data mesh in 2026: from hype to hard-won maturity](https://www.thoughtworks.com/en-us/insights/blog/data-strategy/the-state-of-data-mesh-in-2026-from-hype-to-hard-won-maturity) (January 2026).
+- Bitol (Linux Foundation AI & Data) — [Open Data Contract Standard](https://github.com/bitol-io/open-data-contract-standard) and [ODCS v3.2.0 and ODPS v1.1.0 released](https://www.entropy-data.com/news/2026-09-08-odcs-3-2-odps-1-1) (September 2026).
+- Atlan — [Gartner on data mesh](https://atlan.com/gartner-data-mesh/) and [Gartner on data fabric](https://atlan.com/gartner-data-fabric/) (summaries of Gartner research).
+- [OpenLineage](https://openlineage.io/) — an open standard for lineage metadata collection.

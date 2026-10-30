@@ -1,0 +1,29 @@
+---
+import Figure from '../mdx/Figure.astro';
+const domains = ['Commerce', 'Logistics', 'Finance', 'Marketing'];
+const fabric = ['Catalog & search', 'Lineage', 'Active metadata', 'Knowledge graph / semantics', 'Policy engine', 'Virtualization / federation'];
+---
+
+<Figure label="Mesh and fabric as complementary layers: domain teams own data products at the top (the mesh, answering who owns what); a metadata-driven fabric layer of catalog, lineage, active metadata, semantics, policy and federation runs across all of them (the fabric, answering how it is found, connected and governed); storage and compute platforms sit underneath." caption="Figure 2 — Mesh and fabric answer different questions. The mesh is an operating model (who owns which data products); the fabric is a metadata-driven capability layer (how data is found, connected and governed automatically). Mature platforms use both.">
+  <svg viewBox="0 0 960 360" xmlns="http://www.w3.org/2000/svg">
+    <text x="16" y="24" class="h">MESH · WHO OWNS WHAT</text>
+    {domains.map((d, i) => (
+      <g>
+        <rect x={16 + i * 234} y="36" width="220" height="74" rx="12" class="box-a"></rect>
+        <text x={126 + i * 234} y="66" text-anchor="middle" class="t ta" style="font-size:14px">{d} domain</text>
+        <text x={126 + i * 234} y="88" text-anchor="middle" class="s">data products + contracts</text>
+      </g>
+    ))}
+    <text x="16" y="138" class="h">FABRIC · HOW IT'S FOUND, CONNECTED AND GOVERNED</text>
+    <rect x="16" y="150" width="928" height="104" rx="12" class="box-b"></rect>
+    {fabric.map((f, i) => (
+      <g>
+        <rect x={32 + (i % 3) * 302} y={162 + Math.floor(i / 3) * 44} width="290" height="36" rx="8" class="box-b" style="fill:var(--bg-elev)"></rect>
+        <text x={177 + (i % 3) * 302} y={185 + Math.floor(i / 3) * 44} text-anchor="middle" class="t tb" style="font-size:13px">{f}</text>
+      </g>
+    ))}
+    <text x="16" y="282" class="h">PLATFORM</text>
+    <rect x="16" y="294" width="928" height="52" rx="12" class="box"></rect>
+    <text x="480" y="325" text-anchor="middle" class="t" style="font-size:13.5px">Object storage · open tables · catalog · engines · pipelines (Parts 2–6)</text>
+  </svg>
+</Figure>
