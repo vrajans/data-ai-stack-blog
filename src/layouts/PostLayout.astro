@@ -102,9 +102,11 @@ const g = SITE.giscus;
           <span>Share this article</span>
           <a class="btn" target="_blank" rel="noopener" href={`https://www.linkedin.com/sharing/share-offsite/?url=${enc(url)}`}>LinkedIn</a>
           <a class="btn" target="_blank" rel="noopener" href={`https://x.com/intent/post?url=${enc(url)}&text=${enc(title)}`}>X</a>
+          <a class="btn" target="_blank" rel="noopener" href={`https://wa.me/?text=${enc(`${title} ${url}`)}`}>WhatsApp</a>
           <a class="btn" target="_blank" rel="noopener" href={`https://news.ycombinator.com/submitlink?u=${enc(url)}&t=${enc(title)}`}>Hacker News</a>
           <a class="btn" target="_blank" rel="noopener" href={`https://www.reddit.com/submit?url=${enc(url)}&title=${enc(title)}`}>Reddit</a>
           <button class="btn" type="button" id="copy-link" data-url={url}>Copy link</button>
+          <button class="btn" type="button" id="native-share" data-url={url} data-title={title} hidden>More…</button>
         </div>
 
         <div class="author-box" data-pagefind-ignore>
@@ -285,6 +287,11 @@ const g = SITE.giscus;
   });
 
   // Copy link
+  const share = document.getElementById('native-share');
+  if (share && 'share' in navigator) {
+    share.hidden = false;
+    share.addEventListener('click', () => navigator.share({ title: share.dataset.title, url: share.dataset.url }).catch(() => {}));
+  }
   const copy = document.getElementById('copy-link');
   copy?.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(copy.dataset.url!); copy.textContent = 'Link copied ✓'; } catch {}

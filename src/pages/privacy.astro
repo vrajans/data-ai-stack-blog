@@ -1,0 +1,51 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SITE } from '../config';
+const updated = 'November 6, 2026';
+const mail = SITE.contactEmail;
+---
+
+<BaseLayout title="Privacy policy" description={`How ${SITE.title} handles your data: newsletter emails, comments and analytics.`}>
+  <section class="container">
+    <div class="privacy prose">
+      <p class="eyebrow">Privacy</p>
+      <h1>Privacy policy</h1>
+      <p class="lead">Short version: this site collects as little as possible. Your email is used only to tell you about new articles, it's never sold or shared for marketing, and you can unsubscribe or ask for deletion at any time.</p>
+      <p><em>Last updated {updated}.</em> This site is run by {SITE.author} ({SITE.brand}). Contact: <a href={`mailto:${mail}`}>{mail}</a>.</p>
+
+      <h2>Newsletter</h2>
+      <p>If you subscribe, we store:</p>
+      <ul>
+        <li>your <strong>email address</strong>;</li>
+        <li>the <strong>page you subscribed from</strong>, the <strong>time you subscribed and confirmed</strong>, and the consent text you agreed to — so we can show that you asked to receive emails;</li>
+        <li>a random <strong>token</strong> used in your confirmation and unsubscribe links.</li>
+      </ul>
+      <p>We use <strong>double opt-in</strong>: nothing is sent except the confirmation email until you click the confirmation link. After that, you'll receive an email when a new article is published. Every email contains an unsubscribe link, and unsubscribing takes effect immediately.</p>
+      <p>The legal basis is your <strong>consent</strong>, which you can withdraw at any time by unsubscribing.</p>
+
+      <h2>Where your data is processed</h2>
+      <ul>
+        <li><strong>Cloudflare</strong> hosts this site and stores the subscriber list (Cloudflare D1). Cloudflare <strong>Turnstile</strong> checks that sign-ups come from people, not bots; it loads only when you start typing in the subscribe form.</li>
+        <li><strong>Resend</strong> sends the confirmation and newsletter emails.</li>
+        <li><strong>GitHub</strong> (via giscus) hosts comments, if comments are shown on an article. Commenting requires signing in with GitHub, and comments are public and subject to GitHub's privacy statement.</li>
+      </ul>
+      <p>These providers may process data outside your country. We don't sell or rent personal data, and we don't share it with advertisers.</p>
+
+      <h2>Analytics and cookies</h2>
+      <p>This site doesn't use advertising or tracking cookies. If analytics are enabled, we use Cloudflare Web Analytics, which is cookie-free and doesn't build profiles of individual visitors. Your browser may store your light/dark theme preference locally; that never leaves your device.</p>
+
+      <h2>How long we keep data</h2>
+      <p>Subscriber data is kept while you're subscribed. Unconfirmed sign-ups expire after 7 days. When you unsubscribe, we keep only your email address and the unsubscribe date, so we don't email you again by mistake — or delete it entirely on request.</p>
+
+      <h2>Your rights</h2>
+      <p>You can ask for a copy of your data, a correction, or deletion by emailing <a href={`mailto:${mail}`}>{mail}</a>. Depending on where you live (for example under the GDPR in the EU/UK or India's DPDP Act), you may also have the right to complain to your data-protection authority.</p>
+
+      <h2>Changes</h2>
+      <p>If this policy changes in a meaningful way, the date above will be updated, and subscribers will be told by email about any change that affects how their email address is used.</p>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .privacy { margin: 64px auto 0; }
+</style>

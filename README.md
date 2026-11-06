@@ -15,7 +15,7 @@ Built with **Astro 7**, hosted **free** on **Cloudflare Workers** (static assets
 | SEO | sitemap, RSS, canonical URLs, Open Graph/Twitter cards, JSON-LD `BlogPosting`, robots.txt | Everything search engines and social networks look for. |
 | Analytics (optional) | Cloudflare Web Analytics | Free, cookie-less, privacy-friendly. |
 | Comments (optional) | Giscus (GitHub Discussions) | Free, no ads, no tracking. |
-| Newsletter | Kit (free up to 10,000 subscribers) | Paste your Kit form action URL into `newsletter.action` in `src/config.ts`. |
+| Newsletter | Own list in Cloudflare D1 + double opt-in via Resend (`worker/index.ts`) | Follow `SETUP-NEWSLETTER.md`, then set `newsletter.enabled: true` in `src/config.ts`. |
 
 **UX features:** light/dark mode, reading-progress bar, sticky table of contents with scroll-spy, series navigation, reading time,
 related posts, previous/next, share buttons, copy-code buttons, click-to-expand diagrams, responsive down to phones, accessible (skip link, focus states, reduced motion).
@@ -130,7 +130,7 @@ wrangler.jsonc              ← Cloudflare Workers config
 1. **Google Search Console** → add your site → submit `https://<your-site>/sitemap-index.xml`.
 2. **Bing Webmaster Tools** → import from Search Console (also feeds DuckDuckGo, ChatGPT search, Copilot).
 3. Turn on **Cloudflare Web Analytics** and paste the token into `src/config.ts`.
-4. Set up Kit (free) and paste the form action URL into `newsletter.action` in `src/config.ts` — email is the most reliable traffic you own.
+4. Set up the newsletter (D1 + Turnstile + Resend) using `SETUP-NEWSLETTER.md` — email is the most reliable traffic you own.
 
 **Every article**
 - Target one clear search intent per post; put the main phrase in the title, description, first paragraph and one H2.

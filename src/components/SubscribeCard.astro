@@ -1,0 +1,64 @@
+---
+// Shared card for the newsletter confirmation / unsubscribe / status pages.
+interface Props { eyebrow: string; title: string; text: string; action?: 'confirm' | 'unsubscribe'; button?: string }
+const { eyebrow, title, text, action, button } = Astro.props;
+---
+
+<section class="container">
+  <div class="card sub-card" data-sub-card data-action={action}>
+    <p class="eyebrow">{eyebrow}</p>
+    <h1>{title}</h1>
+    <p class="text" data-text>{text}</p>
+    {action && (
+      <form method="post" action={`/api/${action}`} data-sub-form>
+        <input type="hidden" name="token" value="" />
+        <button class="btn primary" type="submit">{button}</button>
+      </form>
+    )}
+    <p class="links"><a href="/blog">Browse articles</a> · <a href="/">Home</a> · <a href="/privacy">Privacy</a></p>
+  </div>
+</section>
+
+<style>
+  .sub-card { max-width: 620px; margin: 80px auto; padding: 36px 34px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg-elev); }
+  .eyebrow { margin: 0; font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-size: clamp(28px, 4vw, 38px); margin: 6px 0 12px; letter-spacing: -0.02em; }
+  .text { color: var(--text-soft); font-size: 17px; line-height: 1.6; margin: 0 0 22px; }
+  .text.err { color: var(--warn); }
+  .links { margin: 26px 0 0; font-size: 14px; color: var(--text-mute); }
+  .links a:hover { color: var(--accent); }
+  form { margin: 0; }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-sub-card]').forEach((card) => {
+    const form = card.querySelector<HTMLFormElement>('[data-sub-form]');
+    if (!form) return;
+    const text = card.querySelector<HTMLElement>('[data-text]')!;
+    const token = new URLSearchParams(location.search).get('token') ?? '';
+    form.querySelector<HTMLInputElement>('input[name=token]')!.value = token;
+    if (!/^[A-Za-z0-9_-]{32}$/.test(token)) {
+      text.textContent = 'This link looks incomplete. Please open it again from the email (or copy the full link).';
+      text.classList.add('err');
+      form.hidden = true;
+      return;
+    }
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('button')!;
+      btn.disabled = true;
+      try {
+        const res = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { accept: 'application/json' } });
+        const data = await res.json();
+        text.textContent = data.message;
+        text.classList.toggle('err', !data.ok);
+        if (data.ok) form.hidden = true;
+      } catch {
+        text.textContent = 'Network error — please try again.';
+        text.classList.add('err');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+</script>

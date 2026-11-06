@@ -36,6 +36,7 @@ const liveSeries = SERIES.filter((s) => posts.some((p) => p.data.series === s.sl
           <li><a href="/series">Series</a></li>
           {liveSeries.map((s) => <li><a href={`/series/${s.slug}`}>{s.title} series</a></li>)}
           <li><a href="/about">About</a></li>
+          <li><a href="/privacy">Privacy</a></li>
         </ul>
       </div>
     </div>

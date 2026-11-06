@@ -18,11 +18,15 @@ const heading = variant === 'inline' ? 'Get the next part by email' : 'Get the n
     </p>
   </div>
   {
-    nl.action ? (
-      <form action={nl.action} method="post" class="nl-form" data-nl-form>
+    nl.enabled ? (
+      <form action={nl.endpoint} method="post" class="nl-form" data-nl-form data-sitekey={nl.turnstileSiteKey}>
         <label for={`${id}-email`} class="sr-only">Email address</label>
-        <input id={`${id}-email`} type="email" name={nl.emailField} placeholder="you@company.com" required autocomplete="email" />
+        <input id={`${id}-email`} type="email" name="email" placeholder="you@company.com" required autocomplete="email" maxlength="254" />
         <button class="btn primary" type="submit">Subscribe</button>
+        <div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off" /></label></div>
+        <input type="hidden" name="source" value={Astro.url.pathname} />
+        <div class="ts" data-ts></div>
+        <p class="nl-fine">Double opt-in: we'll email you a confirmation link. See the <a href="/privacy">privacy policy</a>.</p>
         <p class="nl-msg" role="status" aria-live="polite"></p>
       </form>
     ) : (
@@ -52,7 +56,13 @@ const heading = variant === 'inline' ? 'Get the next part by email' : 'Get the n
     border: 1px solid var(--border); background: var(--bg); color: var(--text);
   }
   input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .nl-msg { flex-basis: 100%; font-size: 14px; min-height: 0; }
+  .nl-msg { flex-basis: 100%; font-size: 14px; min-height: 0; font-weight: 600; }
+  .nl-msg.err { color: var(--warn); }
+  .nl-fine { flex-basis: 100%; font-size: 12.5px; color: var(--text-mute); }
+  .nl-fine a { text-decoration: underline; }
+  .ts:empty { display: none; }
+  .ts { flex-basis: 100%; }
+  .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
   .nl-msg:empty { display: none; }
   .inline { grid-template-columns: 1fr; gap: 16px; padding: 24px 26px; margin: 48px 0 0; }
   .inline h2 { font-size: 20px; margin-top: 0 !important; padding-top: 0 !important; }
@@ -61,21 +71,73 @@ const heading = variant === 'inline' ? 'Get the next part by email' : 'Get the n
 </style>
 
 <script>
-  // Submit in the background so readers stay on the article. Falls back to a normal form post if JS fails.
+  // Background submit to our own /api/subscribe. Cloudflare Turnstile (bot check) loads only when a
+  // reader starts typing, so normal page views load no third-party scripts.
+  type TS = { render: (el: Element, o: Record<string, unknown>) => string; reset: (id: string) => void };
+  declare global { interface Window { turnstile?: TS } }
+  let tsLoad: Promise<TS> | null = null;
+  const loadTurnstile = () =>
+    (tsLoad ??= new Promise<TS>((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.async = true;
+      s.onload = () => (window.turnstile ? resolve(window.turnstile) : reject(new Error('turnstile')));
+      s.onerror = reject;
+      document.head.appendChild(s);
+    }));
+
   document.querySelectorAll<HTMLFormElement>('[data-nl-form]').forEach((form) => {
+    const sitekey = form.dataset.sitekey;
+    const msg = form.querySelector<HTMLElement>('.nl-msg')!;
+    const btn = form.querySelector<HTMLButtonElement>('button[type=submit]')!;
+    const input = form.querySelector<HTMLInputElement>('input[type=email]')!;
+    let widgetId: string | null = null;
+    let token = '';
+    let waiters: ((t: string) => void)[] = [];
+
+    const start = async () => {
+      if (!sitekey || widgetId !== null) return;
+      widgetId = '';
+      try {
+        const ts = await loadTurnstile();
+        widgetId = ts.render(form.querySelector('[data-ts]')!, {
+          sitekey, appearance: 'interaction-only', action: 'subscribe',
+          callback: (t: string) => { token = t; waiters.forEach((w) => w(t)); waiters = []; },
+          'expired-callback': () => { token = ''; },
+        });
+      } catch { widgetId = null; }
+    };
+    input.addEventListener('focus', start, { once: true });
+    input.addEventListener('input', start, { once: true });
+
+    const getToken = () => new Promise<string>((resolve) => {
+      if (!sitekey || token) return resolve(token);
+      waiters.push(resolve);
+      setTimeout(() => resolve(token), 15000);
+    });
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const msg = form.querySelector<HTMLElement>('.nl-msg')!;
-      const btn = form.querySelector<HTMLButtonElement>('button')!;
+      msg.classList.remove('err');
       btn.disabled = true;
+      msg.textContent = 'Subscribing…';
       try {
-        await fetch(form.action, { method: 'POST', body: new FormData(form), mode: 'no-cors' });
-        msg.textContent = 'Almost done — check your inbox to confirm your subscription.';
-        form.querySelector('input')!.value = '';
+        await start();
+        const t = await getToken();
+        const body = new FormData(form);
+        if (t) body.set('cf-turnstile-response', t);
+        const res = await fetch(form.action, { method: 'POST', body, headers: { accept: 'application/json' } });
+        const data = await res.json().catch(() => ({ ok: false, message: 'Something went wrong. Please try again.' }));
+        msg.textContent = data.message;
+        msg.classList.toggle('err', !data.ok);
+        if (data.ok) input.value = '';
       } catch {
-        form.submit();
+        msg.textContent = 'Network error — please try again.';
+        msg.classList.add('err');
       } finally {
         btn.disabled = false;
+        token = '';
+        if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
       }
     });
   });

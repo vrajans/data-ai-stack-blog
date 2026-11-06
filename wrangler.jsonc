@@ -1,12 +1,36 @@
-// Cloudflare Workers (static assets) — free tier; static asset requests are free & unmetered.
+// Cloudflare Workers — static site + a tiny newsletter API.
+// Static asset requests are free & unmetered. The Worker script runs ONLY for /api/* (run_worker_first),
+// so page views never count against the free 100k Worker requests/day.
 // Docs: https://developers.cloudflare.com/workers/static-assets/
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "data-ai-stack",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-09-01",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     "not_found_handling": "404-page",
-    "html_handling": "auto-trailing-slash"
-  }
+    "html_handling": "auto-trailing-slash",
+    "run_worker_first": ["/api/*"]
+  },
+  // Subscribers live in D1 (serverless SQLite). Create it once in the dashboard:
+  // Storage & Databases → D1 → Create → name "varath-subscribers" → Database ID below.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "varath-subscribers",
+      "database_id": "99be877f-a10f-4963-b640-b8e8aa58d412"
+    }
+  ],
+  // Non-secret settings. Secrets (RESEND_API_KEY, TURNSTILE_SECRET, ADMIN_TOKEN) are set in the dashboard,
+  // never in this file.
+  "vars": {
+    "SITE_URL": "https://varath.dev",
+    "FROM_EMAIL": "Data & AI with Varath <newsletter@varath.dev>",
+    "DAILY_EMAIL_CAP": "90"
+  },
+  // Daily clean-up of unconfirmed sign-ups (free plan allows cron triggers).
+  "triggers": { "crons": ["17 3 * * *"] },
+  "observability": { "enabled": true }
 }

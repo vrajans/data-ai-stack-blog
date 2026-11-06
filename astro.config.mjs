@@ -7,7 +7,7 @@ import { SITE } from './src/config.ts';
 export default defineConfig({
   site: SITE.url,
   trailingSlash: 'ignore',
-  integrations: [mdx(), sitemap()],
+  integrations: [mdx(), sitemap({ filter: (page) => !page.includes('/subscribe/') })],
   prefetch: { prefetchAll: true, defaultStrategy: 'hover' },
   markdown: {
     shikiConfig: {

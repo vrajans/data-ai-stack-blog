@@ -23,14 +23,18 @@ export const SITE = {
   },
   // Free, privacy-friendly analytics: Cloudflare dashboard → Analytics & Logs → Web Analytics → add site → copy token
   cloudflareAnalyticsToken: '',
-  // Email newsletter via Kit (free up to 10,000 subscribers).
-  // Kit → Grow → Landing Pages & Forms → your form → Publish → HTML → copy the <form action="..."> URL here.
+  // Public contact address (forward it to your inbox with Cloudflare Email Routing — free).
+  contactEmail: 'hello@varath.dev',
+  // Own email list: subscribers are stored in Cloudflare D1 by the Worker in /worker (double opt-in via Resend).
+  // Set enabled: true once the D1 database, secrets and Turnstile are set up (see SETUP-NEWSLETTER.md).
   newsletter: {
-    action: '',            // e.g. 'https://app.kit.com/forms/1234567/subscriptions'
-    emailField: 'email_address',
+    enabled: false,
+    endpoint: '/api/subscribe',
+    // Cloudflare Turnstile SITE key (public). Dashboard → Turnstile → Add widget → varath.dev → Managed.
+    turnstileSiteKey: '0x4AAAAAAF25fBjr4zFoSCZu',
   },
   // Free comments via GitHub Discussions (https://giscus.app). Fill all four to enable.
-  giscus: { repo: '', repoId: '', category: '', categoryId: '' },
+  giscus: { repo: 'vrajans/data-ai-stack-blog', repoId: 'R_kgDOU4Qoxg', category: 'Comments', categoryId: 'DIC_kwDOU4Qoxs4DKjt8' },
   postsPerPage: 9,
 };
 
