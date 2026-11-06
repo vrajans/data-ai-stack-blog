@@ -1,0 +1,106 @@
+---
+// One blueprint, five platforms: the same five layers mapped to each platform's services.
+import Figure from '../mdx/Figure.astro';
+type Item = [string, string];
+type Stack = { n: number; name: string; ingest: Item[]; store: Item[]; process: Item[]; serve: Item[]; consume: Item[]; govern: string; ops: string; note: string };
+const STACKS: Record<string, Stack> = {
+  aws: {
+    n: 1, name: 'AWS',
+    ingest: [['Zero-ETL · DMS', 'CDC from databases'], ['Kinesis · MSK', 'event streams'], ['Data Firehose', 'streams → Iceberg'], ['Glue connectors', 'SaaS & batch loads']],
+    store: [['Amazon S3', 'object storage'], ['S3 Tables', 'managed Iceberg'], ['Glue Data Catalog', 'Iceberg REST catalog'], ['Lake Formation', 'fine-grained access']],
+    process: [['AWS Glue · EMR', 'Spark, serverless or EKS'], ['Managed Flink', 'stream processing'], ['Athena', 'serverless SQL & Spark'], ['dbt · Redshift SQL', 'transformations']],
+    serve: [['Amazon Redshift', 'warehouse · Iceberg'], ['Aurora · DynamoDB', 'app serving'], ['S3 Vectors', 'plus OpenSearch'], ['SageMaker AI', 'features & models']],
+    consume: [['Amazon Quick', 'BI (ex-QuickSight)'], ['Amazon Bedrock', 'models & AgentCore'], ['Unified Studio', 'SageMaker workspace'], ['Apps & APIs', 'Lambda · API Gateway']],
+    govern: 'Governance · SageMaker Catalog (built on DataZone) · Lake Formation · Glue Data Quality · lineage · IAM',
+    ops: 'Orchestration & ops · Amazon MWAA (Airflow) · Step Functions · EventBridge · CloudWatch · Cost Explorer',
+    note: 'A toolkit of services joined by S3, the Glue Data Catalog and IAM — the "lakehouse architecture of Amazon SageMaker".',
+  },
+  azure: {
+    n: 2, name: 'Azure (Fabric-centric)',
+    ingest: [['Data Factory', 'pipelines · Copy job CDC'], ['Mirroring', 'SQL, Cosmos, Snowflake…'], ['Eventstream', 'or Azure Event Hubs'], ['Dataflow Gen2', 'low-code Power Query']],
+    store: [['OneLake', 'one lake per tenant'], ['Delta Lake tables', 'Iceberg via interop'], ['Shortcuts', 'ADLS · S3 · GCS'], ['OneLake catalog', 'discovery & security']],
+    process: [['Fabric Spark', 'notebooks · Runtime 2.0'], ['Fabric Warehouse', 'T-SQL transforms'], ['dbt jobs', 'managed in Fabric'], ['Azure Databricks', 'optional, via OneLake']],
+    serve: [['Fabric Warehouse', 'SQL serving'], ['Eventhouse', 'real-time KQL'], ['SQL database', 'in Fabric, for apps'], ['Semantic models', 'Direct Lake']],
+    consume: [['Power BI', 'reports · Copilot'], ['Data agents', 'Fabric IQ ontology'], ['Microsoft Foundry', 'models & agents'], ['Excel · Teams', 'Microsoft 365']],
+    govern: 'Governance · Microsoft Purview · OneLake security · sensitivity labels & DLP · Entra ID',
+    ops: 'Orchestration & ops · Fabric pipelines & Activator · Git & deployment pipelines · Capacity Metrics app',
+    note: 'One SaaS capacity, one lake (OneLake), Delta by default — with Azure Databricks as a common companion.',
+  },
+  gcp: {
+    n: 3, name: 'Google Cloud',
+    ingest: [['Datastream', 'CDC to BigQuery'], ['Pub/Sub', 'event streams'], ['Dataflow', 'Apache Beam pipelines'], ['BigQuery DTS', 'SaaS & batch loads']],
+    store: [['Cloud Storage', 'object storage'], ['BigQuery storage', 'native tables'], ['Iceberg tables', 'BigQuery-managed'], ['Lakehouse catalog', 'runtime · Iceberg REST']],
+    process: [['BigQuery SQL', 'ELT · Dataform · dbt'], ['Managed Spark', 'ex-Dataproc'], ['Dataflow streaming', 'stateful pipelines'], ['Continuous queries', 'SQL on streams']],
+    serve: [['BigQuery', 'BI Engine · editions'], ['AlloyDB · Spanner', 'app serving'], ['Vector search', 'in BigQuery'], ['Bigtable', 'low-latency lookups']],
+    consume: [['Looker', 'LookML semantic layer'], ['Looker Studio', 'self-service'], ['Data agents', 'conversational analytics'], ['Agent Platform', 'Gemini Enterprise']],
+    govern: 'Governance · Knowledge Catalog (ex-Dataplex) · data products · lineage & quality · IAM · policy tags',
+    ops: 'Orchestration & ops · Managed Airflow (ex-Composer) · Workflows · Cloud Monitoring · BigQuery quotas',
+    note: 'BigQuery at the center, increasingly over open Iceberg tables in Cloud Storage.',
+  },
+  databricks: {
+    n: 4, name: 'Databricks',
+    ingest: [['Lakeflow Connect', 'managed connectors'], ['Auto Loader', 'incremental files'], ['Zerobus', 'direct push ingest'], ['Kafka · Kinesis', 'structured streaming']],
+    store: [['Your object storage', 'S3 · ADLS · GCS'], ['Delta · Iceberg', 'managed tables (v3)'], ['Unity Catalog', 'Iceberg REST · OSS'], ['OpenSharing', 'ex-Delta Sharing']],
+    process: [['Declarative Pipelines', 'Lakeflow (ex-DLT)'], ['Notebooks · Spark', 'serverless compute'], ['dbt · SQL', 'transformations'], ['Real-Time Mode', 'low-latency streams']],
+    serve: [['Databricks SQL', 'serverless warehouses'], ['Lakebase', 'managed Postgres'], ['Vector Search', 'retrieval for RAG'], ['Model Serving', 'endpoints · AI Gateway']],
+    consume: [['AI/BI dashboards', 'and Genie'], ['Metric views', 'in Unity Catalog'], ['Agent Bricks', 'build & evaluate agents'], ['Databricks Apps', 'data & AI apps']],
+    govern: 'Governance · Unity Catalog · ABAC policies · lineage · data quality monitoring · audit logs',
+    ops: 'Orchestration & ops · Lakeflow Jobs · Git folders & CI/CD · budget policies · system tables for cost',
+    note: 'One platform on top of your own cloud account and storage; Unity Catalog is the control plane.',
+  },
+  snowflake: {
+    n: 5, name: 'Snowflake',
+    ingest: [['Openflow', 'managed connectors'], ['Snowpipe Streaming', 'rows in seconds'], ['Snowpipe · COPY', 'files'], ['Zero-copy & sharing', 'SAP · Marketplace']],
+    store: [['Native tables', 'managed storage'], ['Iceberg tables', 'v3 · your storage'], ['Horizon Catalog', 'Iceberg REST APIs'], ['Open Catalog', 'managed Polaris']],
+    process: [['Dynamic Tables', 'declarative pipelines'], ['Snowpark', 'Python · Java · Scala'], ['dbt Projects', 'run in Snowflake'], ['Streams & Tasks', 'CDC & scheduling']],
+    serve: [['Virtual warehouses', 'Gen2 · Adaptive'], ['Snowflake Postgres', 'OLTP for apps'], ['Hybrid tables', 'Unistore lookups'], ['Cortex Search', 'hybrid retrieval']],
+    consume: [['Semantic views', 'metrics · OSI'], ['Cortex AI & Agents', 'AI functions in SQL'], ['CoWork', 'ex-Snowflake Intelligence'], ['Streamlit · apps', 'and Marketplace']],
+    govern: 'Governance · Horizon · masking & row access policies · tags · lineage · Trust Center · AI guardrails',
+    ops: 'Orchestration & ops · task graphs · Git integration · budgets · resource monitors · query history',
+    note: 'A fully managed SaaS engine that now reads and writes open Iceberg tables as first-class citizens.',
+  },
+};
+interface Props { platform: keyof typeof STACKS }
+const s = STACKS[Astro.props.platform];
+const cols = [
+  { h: 'INGEST', cls: 'box', items: s.ingest },
+  { h: 'STORE & CATALOG', cls: 'box-a', items: s.store },
+  { h: 'PROCESS', cls: 'box', items: s.process },
+  { h: 'SERVE', cls: 'box-b', items: s.serve },
+  { h: 'CONSUME', cls: 'box', items: s.consume },
+];
+const W = 174, G = 17, X0 = 14, Y0 = 44, IH = 58, IG = 10;
+const id = `ps-${Astro.props.platform}`;
+const label = `Reference architecture on ${s.name}: ingest with ${s.ingest.map((i) => i[0]).join(', ')}; store with ${s.store.map((i) => i[0]).join(', ')}; process with ${s.process.map((i) => i[0]).join(', ')}; serve with ${s.serve.map((i) => i[0]).join(', ')}; consume with ${s.consume.map((i) => i[0]).join(', ')}. ${s.govern}. ${s.ops}.`;
+---
+
+<Figure label={label} caption={`Figure ${s.n} — The blueprint on ${s.name}. ${s.note} Service names as of November 2026.`}>
+  <svg viewBox="0 0 966 410" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id={id} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow-a"></path></marker>
+    </defs>
+    {cols.map((c, i) => {
+      const x = X0 + i * (W + G);
+      return (
+        <g>
+          <text x={x + W / 2} y="26" text-anchor="middle" class="h">{c.h}</text>
+          {c.items.map((it, j) => {
+            const y = Y0 + j * (IH + IG);
+            return (
+              <g>
+                <rect x={x} y={y} width={W} height={IH} rx="10" class={c.cls}></rect>
+                <text x={x + W / 2} y={y + 25} text-anchor="middle" class="t" style="font-size:13px">{it[0]}</text>
+                <text x={x + W / 2} y={y + 43} text-anchor="middle" class="s">{it[1]}</text>
+              </g>
+            );
+          })}
+          {i < cols.length - 1 && <line x1={x + W + 2} y1="170" x2={x + W + G - 2} y2="170" class="lna" marker-end={`url(#${id})`}></line>}
+        </g>
+      );
+    })}
+    <rect x="14" y="320" width="938" height="34" rx="10" class="box-b"></rect>
+    <text x="483" y="342" text-anchor="middle" class="t tb" style="font-size:12.5px">{s.govern}</text>
+    <rect x="14" y="362" width="938" height="34" rx="10" class="box"></rect>
+    <text x="483" y="384" text-anchor="middle" class="t" style="font-size:12.5px">{s.ops}</text>
+  </svg>
+</Figure>

@@ -1,0 +1,38 @@
+---
+import Figure from '../mdx/Figure.astro';
+const engines = ['Spark', 'Trino', 'Flink', 'DuckDB', 'Athena', 'BigQuery', 'Databricks', 'Snowflake', 'Fabric'];
+const catalogs = [
+  ['Glue Data Catalog', 'S3 Tables · AWS'],
+  ['OneLake catalog', 'shortcuts · Azure'],
+  ['Lakehouse catalog', 'runtime · Google'],
+  ['Unity Catalog', 'Databricks · OSS'],
+  ['Horizon / Polaris', 'Snowflake · OSS'],
+];
+const EW = 96, EG = 8, CW = 176, CG = 12;
+---
+
+<Figure label="Open interoperability: many engines at the top (Spark, Trino, Flink, DuckDB, Athena, BigQuery, Databricks, Snowflake, Fabric) talk to catalogs through the Iceberg REST API or catalog federation; catalogs (Glue Data Catalog, OneLake catalog, Google's Lakehouse runtime catalog, Unity Catalog, Snowflake Horizon and Apache Polaris) point to open Iceberg and Delta tables stored once in object storage." caption="Figure 6 — The open layer that makes multi-platform architectures work: one copy of the data in open tables, a catalog of record per table, and engines that reach it through the Iceberg REST API or catalog federation.">
+  <svg viewBox="0 0 960 360" xmlns="http://www.w3.org/2000/svg">
+    <text x="16" y="24" class="h">ENGINES · READ AND WRITE THE SAME TABLES</text>
+    {engines.map((e, i) => (
+      <g>
+        <rect x={16 + i * (EW + EG)} y="36" width={EW} height="44" rx="10" class="box"></rect>
+        <text x={16 + i * (EW + EG) + EW / 2} y="63" text-anchor="middle" class="t" style="font-size:11.5px">{e}</text>
+      </g>
+    ))}
+    <rect x="16" y="98" width="928" height="30" rx="8" class="box-w"></rect>
+    <text x="480" y="118" text-anchor="middle" class="t" style="font-size:12.5px">Iceberg REST catalog API · catalog federation · credential vending</text>
+    <text x="16" y="154" class="h">CATALOGS · ONE CATALOG OF RECORD PER TABLE</text>
+    {catalogs.map((c, i) => (
+      <g>
+        <rect x={16 + i * (CW + CG)} y="166" width={CW} height="58" rx="10" class="box-b"></rect>
+        <text x={16 + i * (CW + CG) + CW / 2} y="190" text-anchor="middle" class="t tb" style="font-size:13px">{c[0]}</text>
+        <text x={16 + i * (CW + CG) + CW / 2} y="209" text-anchor="middle" class="s">{c[1]}</text>
+      </g>
+    ))}
+    <text x="16" y="254" class="h">STORAGE · DATA STORED ONCE</text>
+    <rect x="16" y="266" width="928" height="78" rx="12" class="box-a"></rect>
+    <text x="480" y="297" text-anchor="middle" class="t ta" style="font-size:14px">Object storage: S3 · ADLS / OneLake · Cloud Storage</text>
+    <text x="480" y="321" text-anchor="middle" class="s">Parquet data files + Apache Iceberg or Delta Lake metadata (see Parts 3 and 4)</text>
+  </svg>
+</Figure>

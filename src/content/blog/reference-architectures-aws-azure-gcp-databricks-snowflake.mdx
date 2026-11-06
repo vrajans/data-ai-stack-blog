@@ -1,0 +1,242 @@
+---
+title: 'Reference Architectures: AWS, Azure, GCP, Databricks & Snowflake (2026)'
+description: 'One data platform blueprint mapped onto AWS, Azure, Google Cloud, Databricks and Snowflake: the services per layer, pricing models, gotchas and how to choose.'
+pubDate: 2026-11-05
+tags: [data-architecture, lakehouse, cloud, data-platforms]
+series: data-architecture
+seriesOrder: 8
+ogImage: /og/reference-architectures-aws-azure-gcp-databricks-snowflake.png
+---
+
+import Callout from '../../components/mdx/Callout.astro';
+import PlatformStack from '../../components/diagrams/PlatformStack.astro';
+import OpenInterop from '../../components/diagrams/OpenInterop.astro';
+
+So far this series has built a vendor-neutral blueprint: open storage and table formats, a catalog as the control plane, a modeling strategy, and batch and streaming paths — all organized into the six layers from [Part 1](/blog/data-architecture-complete-guide). The next question is always the same: *what does this look like on the platform we actually use?*
+
+This is Part 8 of the [Data Architecture series](/series/data-architecture). We map the same blueprint onto the five platforms most teams choose between — **AWS, Microsoft Azure, Google Cloud, Databricks and Snowflake** — with the services for each layer, what each platform is genuinely good at, the gotchas, and how to choose.
+
+<Callout type="key" title="The short answer">
+**The blueprint is the same everywhere; the differences are in the control plane, the pricing model and the operating effort.** AWS gives you the most building blocks to assemble. Azure (via Microsoft Fabric) and Snowflake give you the most integrated SaaS experience. Google Cloud centers everything on BigQuery. Databricks gives you one platform on top of whichever cloud you already use. In 2026 all five read and write **open Iceberg (and, for some, Delta) tables** — so keep your important data in open formats with a clear catalog of record, and the choice becomes far less permanent.
+</Callout>
+
+<Callout type="note" title="A note on names">
+Cloud product names change often — 2026 alone brought renames on every platform in this article. The names below are current as of **November 2026**; where a recent rename matters, the former name is shown in brackets. The architecture underneath changes much more slowly than the labels.
+</Callout>
+
+## The blueprint we're mapping
+
+Each platform below is drawn with the same five layers (sources are omitted — they're your systems, not the platform's):
+
+1. **Ingest** — batch loads, change data capture (CDC) and event streams ([Part 6](/blog/batch-streaming-real-time-architectures)).
+2. **Store & catalog** — object storage, open table formats and the catalog that governs them ([Parts 2–4](/blog/lakehouse-catalogs-metadata-control-plane)).
+3. **Process** — SQL and Spark transformations, streaming jobs, the medallion layers ([Part 5](/blog/data-modeling-modern-stack)).
+4. **Serve** — warehouses, low-latency stores, vector search and model endpoints.
+5. **Consume** — BI, semantic layers, data apps, AI agents.
+
+Two bars run underneath every diagram: **governance** and **orchestration & operations**. For each platform, the question that matters most is: *which component is the control plane* — where identity, permissions, lineage and the list of tables actually live?
+
+## AWS: the toolkit
+
+AWS offers the widest set of individual services. Since late 2024 it has pulled its data and AI services together under the **next generation of Amazon SageMaker**: SageMaker Unified Studio is the shared workspace, SageMaker Catalog (built on Amazon DataZone) handles business discovery and governance, and the "lakehouse architecture of Amazon SageMaker" unifies S3 data lakes, Redshift and federated sources behind the **AWS Glue Data Catalog**.
+
+<PlatformStack platform="aws" />
+
+**How the pieces fit**
+
+- **Storage:** Amazon S3, with **S3 Tables** for fully managed Apache Iceberg tables — AWS runs compaction, snapshot expiry and unreferenced-file cleanup for you, and exposes the Iceberg REST Catalog API. You can also keep self-managed Iceberg tables in general-purpose buckets, registered in the Glue Data Catalog.
+- **Control plane:** the Glue Data Catalog (with an Iceberg REST endpoint) plus **Lake Formation** for fine-grained permissions. Athena, EMR, Glue, Redshift and many third-party engines all read the same catalog.
+- **Processing:** Spark on AWS Glue or Amazon EMR (on EC2, on EKS or serverless), SQL in Athena or Redshift, and Amazon Managed Service for Apache Flink for streaming. Amazon Redshift can now also *write* to Iceberg tables (since November 2025).
+- **Serving and AI:** Redshift for warehouse workloads, Aurora or DynamoDB for applications, **S3 Vectors** (generally available since December 2025) or OpenSearch for embeddings, and Amazon Bedrock with AgentCore for models and agents. BI is **Amazon Quick** (formerly QuickSight).
+
+**Strengths:** the most choice; mature, granular services; pay-per-use pricing for almost everything; S3 Tables removes much of the Iceberg maintenance burden.
+
+**Watch out for:**
+
+- **Assembly is your job.** Ten services means ten configurations, ten pricing models and more integration work. Budget platform-engineering time.
+- **Two permission models.** IAM policies and Lake Formation grants interact in ways that surprise teams. Pick one model for table access (usually Lake Formation) and document it.
+- **Engine feature gaps.** Iceberg support (writes, schema evolution, v3 features) differs between Athena, EMR, Glue and Redshift. Check the specific operations you need on each engine.
+
+**Best fit:** organizations already standardized on AWS with platform-engineering capacity, who want open tables and the freedom to pick an engine per workload.
+
+## Azure: Microsoft Fabric at the center
+
+On Azure, the center of gravity for analytics is now **Microsoft Fabric**: a single SaaS platform with one data lake per tenant (**OneLake**), shared capacity-based billing, and every workload — data engineering, warehousing, real-time, BI — reading the same tables. Microsoft's new analytics investment goes into Fabric; Azure Synapse customers are offered migration assistants rather than new features.
+
+<PlatformStack platform="azure" />
+
+**How the pieces fit**
+
+- **Storage:** OneLake stores tables in **Delta Lake** format by default. **Shortcuts** reference data in ADLS, S3 or Google Cloud Storage without copying it, and **mirroring** keeps near-real-time replicas of operational databases and other platforms (Azure SQL, Cosmos DB, Snowflake, BigQuery and more) in OneLake. Iceberg interoperability exists and is maturing, but Delta is the native format.
+- **Processing:** Fabric Spark (Runtime 2.0, with Spark 4.1 and Delta Lake 4.2), the T-SQL **Fabric Data Warehouse**, managed dbt jobs, Dataflow Gen2 for low-code work, and Eventstream and Eventhouse (KQL) for real-time intelligence.
+- **Serving and BI:** **Power BI semantic models in Direct Lake mode** read Delta tables in OneLake directly — no import copy and no live query to a separate warehouse. This tight Power BI integration is Fabric's biggest differentiator.
+- **AI:** Fabric data agents, **Fabric IQ** (an ontology layer that gives agents business context), Copilot across the platform, and **Microsoft Foundry** for building models and agents.
+- **Governance:** Microsoft Purview and OneLake security, with Entra ID identities and sensitivity labels that follow the data into Power BI and Microsoft 365.
+
+**The Azure Databricks option.** Many Azure customers run Azure Databricks — for heavy engineering, ML or multi-cloud reasons — alongside or instead of Fabric. The two increasingly interoperate: Databricks data can be stored in OneLake, and Fabric can mirror Unity Catalog tables. A common split is *Databricks for engineering and ML, Fabric and Power BI for consumption*.
+
+**Strengths:** the most integrated experience if your organization runs on Microsoft 365 and Power BI; one bill and one security model; fast time to value for BI-heavy teams.
+
+**Watch out for:**
+
+- **Capacity-based billing.** Everything consumes capacity units from a shared F-SKU. A heavy Spark job can throttle the CEO's dashboard if workloads share a capacity. Separate capacities for engineering and BI, monitor with the Capacity Metrics app, and understand overage billing — it's enabled by default on new capacities and charged at a premium.
+- **Uneven maturity.** Fabric ships features very quickly; check whether what you depend on is generally available or still in preview.
+- **Delta-first.** If your strategy is Iceberg-first, validate the specific Iceberg interoperability paths you need.
+
+**Best fit:** Microsoft-centric organizations, especially where Power BI is the main consumption layer.
+
+## Google Cloud: BigQuery at the center
+
+On Google Cloud, almost every architecture is built around **BigQuery** — a serverless engine with separated storage and compute — increasingly extended over open Iceberg tables in Cloud Storage. 2026 brought a wave of renames, so older tutorials use different names for the same things:
+
+| Current name (2026) | Former name |
+|---|---|
+| Google Cloud Lakehouse | BigLake |
+| Lakehouse runtime catalog | BigLake metastore |
+| Knowledge Catalog | Dataplex Universal Catalog |
+| Managed Service for Apache Spark | Dataproc / Serverless for Apache Spark |
+| Managed Service for Apache Airflow | Cloud Composer |
+| Gemini Enterprise Agent Platform | Vertex AI |
+
+<PlatformStack platform="gcp" />
+
+**How the pieces fit**
+
+- **Ingestion:** Datastream for CDC from operational databases straight into BigQuery, Pub/Sub for events, Dataflow (Apache Beam) for stream and batch pipelines, and the BigQuery Data Transfer Service for SaaS sources.
+- **Storage:** BigQuery native storage, or **BigQuery-managed Iceberg tables** in your own Cloud Storage buckets. The **Lakehouse runtime catalog** exposes those tables through an Iceberg REST API so Spark, Flink and Trino can use the same data; full multi-engine writes through it reached preview in mid-2026.
+- **Federation:** as of November 2026, BigQuery can federate with remote catalogs — **Databricks Unity Catalog, AWS Glue and Snowflake Horizon** — and query their Iceberg tables in place.
+- **Processing:** BigQuery SQL (with Dataform or dbt), Spark on the Managed Service for Apache Spark, Dataflow for streaming, and BigQuery continuous queries for SQL over streams.
+- **Consumption and AI:** **Looker**, whose LookML semantic layer is one of the most mature in the market; conversational analytics and data agents; and the Gemini Enterprise Agent Platform for models and agents.
+- **Governance:** Knowledge Catalog provides discovery, lineage, data quality and data products across BigQuery, the Lakehouse catalog and Looker.
+
+**Strengths:** truly serverless analytics with little to tune; excellent price-performance at scale; a strong semantic layer in Looker; fast-moving Iceberg and cross-cloud support.
+
+**Watch out for:**
+
+- **On-demand pricing surprises.** On-demand queries are billed by bytes scanned ($6.25 per TiB, US list price). Partition and cluster tables, set per-user and per-project quotas, and move steady workloads to capacity-based Editions.
+- **Rename churn.** Documentation, Terraform and job titles lag behind the new names. APIs and IAM roles mostly kept their old names, so you'll see both.
+- **Preview features.** Several open-lakehouse capabilities are recent or still in preview; confirm status for anything on your critical path.
+
+**Best fit:** organizations on Google Cloud, teams that want the least infrastructure to operate, and BI-heavy use cases on Looker.
+
+## Databricks: one platform on your cloud
+
+Databricks runs on AWS, Azure and Google Cloud, but with your data in **your own object storage**. **Unity Catalog** is the control plane for everything: tables, files, ML models, functions, permissions, lineage and metrics.
+
+<PlatformStack platform="databricks" />
+
+**How the pieces fit**
+
+- **Ingestion:** **Lakeflow Connect** managed connectors for databases and SaaS sources, Auto Loader for files, Kafka or Kinesis via Structured Streaming, and **Zerobus** for applications that push events directly into tables.
+- **Storage:** Delta Lake and **managed Iceberg tables** (Iceberg v3 is generally available), both governed by Unity Catalog, which exposes an Iceberg REST API for external engines. **OpenSharing** — the Linux Foundation successor to Delta Sharing — shares data across platforms and clouds.
+- **Processing:** **Lakeflow Spark Declarative Pipelines** (formerly DLT) for declarative batch and streaming pipelines with built-in quality expectations, notebooks and jobs on serverless compute, dbt, and Real-Time Mode for low-latency streaming.
+- **Serving:** Databricks SQL serverless warehouses for BI, **Lakebase** (managed Postgres) for application data, Vector Search, and Model Serving behind an AI gateway.
+- **Consumption and AI:** AI/BI dashboards and **Genie** for natural-language questions, **metric views** in Unity Catalog as the semantic layer, **Agent Bricks** for building and evaluating agents, and Databricks Apps.
+
+**Strengths:** one platform for engineering, analytics and ML across clouds; deep Spark and streaming capability; a governance layer that covers data *and* AI assets; strong open-format story (Delta, Iceberg, open-source Unity Catalog).
+
+**Watch out for:**
+
+- **Two bills.** You pay Databricks (DBUs) and your cloud provider (storage, networking and, for classic compute, VMs). Use system billing tables, tags and budget policies from day one.
+- **Classic vs. serverless.** Classic compute gives control but needs tuning; serverless is simpler but priced differently. Decide a default per workload type.
+- **You still own the cloud plumbing.** Networking, storage accounts and identity integration are your responsibility.
+
+**Best fit:** engineering- and ML-heavy organizations, multi-cloud enterprises, and teams that want one governed platform from raw data to agents.
+
+## Snowflake: the managed engine that went open
+
+Snowflake is a fully managed SaaS platform on AWS, Azure and Google Cloud. Its historical strength — near-zero administration with native storage — is now joined by first-class support for **Apache Iceberg tables in your own storage**, and it has steadily added ingestion, transformation, Postgres and AI services.
+
+<PlatformStack platform="snowflake" />
+
+**How the pieces fit**
+
+- **Ingestion:** **Snowflake Openflow** (managed connectors built on Apache NiFi), Snowpipe for files, Snowpipe Streaming for row-level streaming, and zero-copy integrations and data sharing (for example with SAP) that avoid pipelines altogether.
+- **Storage:** native Snowflake tables, or **Iceberg tables** (Iceberg v3 became generally available at Summit 2026) managed by Snowflake or by an external catalog. **Horizon Catalog** now exposes Iceberg REST APIs for external engines, and Snowflake Open Catalog is a managed service for Apache Polaris.
+- **Processing:** SQL, **Dynamic Tables** for declarative incremental pipelines, Streams and Tasks for CDC-style processing, Snowpark for Python, Java and Scala, and **dbt Projects on Snowflake** (generally available since November 2025).
+- **Serving:** virtual warehouses (Gen2, with Adaptive Compute rolling out), **Snowflake Postgres** for transactional apps (generally available since February 2026), hybrid tables, and Cortex Search for retrieval.
+- **Consumption and AI:** **semantic views** for governed metrics, Cortex AI functions callable from SQL, Cortex Agents, and **Snowflake CoWork** (formerly Snowflake Intelligence) for business users — plus Streamlit apps and the Marketplace.
+- **Governance:** **Horizon** — masking and row access policies, tags, lineage, Trust Center and AI guardrails — applies across native and Iceberg tables.
+
+**Strengths:** the lowest operational effort; excellent concurrency and workload isolation through separate warehouses; best-in-class data sharing and Marketplace; a strong governance model.
+
+**Watch out for:**
+
+- **Credit discipline.** Warehouses bill per second while running. Right-size them, keep auto-suspend short, separate workloads, and use budgets and resource monitors.
+- **Native vs. Iceberg trade-offs.** Iceberg tables keep data open but some features and performance characteristics differ from native tables; external catalogs add constraints. Choose per dataset.
+- **Egress and external engines.** When other engines read Snowflake-managed Iceberg tables, check where data and compute live to avoid cross-region or cross-cloud charges.
+
+**Best fit:** SQL-centric analytics teams that value low operations, data sharing and governance — increasingly also as an open Iceberg engine within a multi-platform architecture.
+
+## Side by side
+
+| | AWS | Azure (Fabric) | Google Cloud | Databricks | Snowflake |
+|---|---|---|---|---|---|
+| **Control plane** | Glue Data Catalog + Lake Formation | OneLake catalog + Purview | Knowledge Catalog + Lakehouse catalog | Unity Catalog | Horizon |
+| **Native table format** | Iceberg (S3 Tables) | Delta Lake | BigQuery native / Iceberg | Delta Lake / Iceberg | Native / Iceberg |
+| **Pricing model** | Per service, pay-per-use | Capacity units (F-SKUs) | On-demand per TiB or slot Editions | DBUs + cloud infrastructure | Credits per warehouse-second |
+| **Operating effort** | Highest — you assemble | Low — SaaS | Low — serverless | Medium | Lowest |
+| **Strongest at** | Breadth and choice | Power BI and Microsoft 365 | Serverless SQL, Looker | Engineering, ML, multi-cloud | Simplicity, sharing, concurrency |
+| **Semantic layer** | Amazon Quick, or a third-party layer | Power BI semantic models | Looker (LookML) | Metric views | Semantic views |
+
+## The open layer: why the choice matters less than it used to
+
+The biggest change since 2023 is that **every one of these platforms now reads and writes open table formats**, and most expose or consume the **Iceberg REST catalog API**. That makes multi-platform architectures practical — one copy of the data, several engines:
+
+<OpenInterop />
+
+Patterns we see often:
+
+- **Databricks for engineering and ML + Snowflake or BigQuery for SQL analytics**, sharing Iceberg tables through catalog federation instead of copying data.
+- **Azure Databricks + Fabric/Power BI**, with Databricks producing gold tables and Power BI reading them via OneLake.
+- **AWS S3 Tables as the storage layer** with Athena and Redshift for SQL plus Snowflake or Databricks reading the same tables.
+
+<Callout type="warn" title="One catalog of record per table">
+Interoperability doesn't remove the need for ownership. Each table should have exactly **one catalog that is allowed to write to it** — others read via federation. Two catalogs committing to the same Iceberg table is how teams lose data. Decide this explicitly, as covered in [Part 4](/blog/lakehouse-catalogs-metadata-control-plane).
+</Callout>
+
+## How to choose
+
+Start from your constraints, not from feature lists:
+
+| If this describes you… | Start with |
+|---|---|
+| Microsoft 365 everywhere and Power BI is the main consumption tool | **Fabric**, adding Azure Databricks for heavy engineering or ML |
+| Already deep on AWS with a strong platform team | **AWS native** (S3 Tables, Glue catalog, Athena/Redshift) — or Databricks or Snowflake on AWS for a more integrated experience |
+| On Google Cloud, or you want the least infrastructure to run | **BigQuery** with Iceberg tables and Looker |
+| Engineering- and ML-heavy, multi-cloud or streaming-heavy | **Databricks** |
+| SQL-centric analysts, heavy data sharing, minimal operations | **Snowflake** |
+| Mixed estate after acquisitions | Open tables + a federated catalog strategy; let each team keep its engine |
+
+Then run a **proof of concept with your own data and queries**: one representative pipeline, your three heaviest dashboards, one ML or AI use case, and a cost estimate based on measured — not vendor-quoted — consumption. Two to four weeks is usually enough to see real differences.
+
+<Callout type="tip" title="Questions that reveal the real cost">
+How do we isolate workloads so one team can't slow down another? What happens to cost when usage doubles? Who owns identity and permissions — the platform or our cloud account? How do we get our data out in an open format? Which features we depend on are still in preview?
+</Callout>
+
+## Common gotchas on every platform
+
+- **Treating the platform as the architecture.** The platform implements your blueprint; it doesn't replace decisions about modeling, ownership and contracts (Parts 5 and 7).
+- **No FinOps from day one.** Tag everything by team and product, set budgets and alerts, and review the top 20 queries or jobs monthly. Part 10 covers this in depth.
+- **Duplicated governance.** Running two platforms with two permission models doubles the audit surface. Decide which catalog is authoritative for access policies.
+- **Hidden network charges.** Cross-region and cross-cloud reads, NAT gateways and private endpoints add up. Keep compute close to the data.
+- **Betting on previews.** Vendor announcements move fast; production commitments should rest on generally available features.
+
+## Key takeaways
+
+- The **same six-layer blueprint** maps onto every platform; the real differences are the control plane, the pricing model and the operating effort.
+- **AWS** is the most flexible toolkit, **Fabric** the most integrated Microsoft experience, **BigQuery** the most serverless, **Databricks** the broadest single platform across clouds, and **Snowflake** the lowest-operations engine.
+- All five now support **open table formats and the Iceberg REST catalog API**, making multi-engine architectures realistic — as long as each table has one catalog of record.
+- Choose from your constraints — existing cloud, skills, consumption tools and governance needs — and validate with a proof of concept on your own data and costs.
+
+## Up next
+
+**Part 9 — Designing AI-Ready Data Architecture.** We'll pull everything together for AI workloads: unstructured data and vector search, feature and context pipelines, semantic layers for agents, governance for non-human identities, and evaluation. Follow along on the [series page](/series/data-architecture), via [RSS](/rss.xml) or by email.
+
+## References and further reading
+
+- AWS — [Amazon SageMaker](https://aws.amazon.com/sagemaker/), [SageMaker Unified Studio release notes](https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/release-notes.html), [Amazon S3 Tables](https://aws.amazon.com/s3/features/tables/), [Redshift writes to Iceberg tables](https://aws.amazon.com/about-aws/whats-new/2025/11/aws-redshift-iceberg-writes-m1) and [S3 Vectors GA](https://aws.amazon.com/about-aws/whats-new/2025/12/amazon-s3-vectors-generally-available/).
+- Microsoft — [FabCon Europe 2026 announcements](https://www.jamesserra.com/archive/2026/10/announcements-from-the-microsoft-fabric-community-conference-barcelona-2026/) (James Serra) and [key Fabric updates](https://www.bitmetric.nl/blog/fabcon-europe-2026-microsoft-fabric-updates/) (Bitmetric).
+- Google Cloud — [Lakehouse release notes](https://docs.cloud.google.com/lakehouse/docs/release-notes), [Knowledge Catalog release notes](https://docs.cloud.google.com/dataplex/docs/release-notes) and [cross-engine Iceberg support in BigQuery](https://www.infoq.com/news/2026/05/google-cross-engine-iceberg/) (InfoQ).
+- Databricks — [What's new with Unity Catalog at Data + AI Summit 2026](https://www.databricks.com/blog/whats-new-unity-catalog-data-ai-summit-2026).
+- Snowflake — [Summit 2026 product announcement recap](https://select.dev/posts/snowflake-summit-2026-product-announcement-recap) (SELECT) and [dbt Projects on Snowflake GA](https://docs.snowflake.com/release-notes/2025/other/2025-11-06-dbt-projects-on-snowflake-ga).
