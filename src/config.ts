@@ -28,7 +28,7 @@ export const SITE = {
   // Own email list: subscribers are stored in Cloudflare D1 by the Worker in /worker (double opt-in via Resend).
   // Set enabled: true once the D1 database, secrets and Turnstile are set up (see SETUP-NEWSLETTER.md).
   newsletter: {
-    enabled: false,
+    enabled: true,
     endpoint: '/api/subscribe',
     // Cloudflare Turnstile SITE key (public). Dashboard → Turnstile → Add widget → varath.dev → Managed.
     turnstileSiteKey: '0x4AAAAAAF25fBjr4zFoSCZu',
