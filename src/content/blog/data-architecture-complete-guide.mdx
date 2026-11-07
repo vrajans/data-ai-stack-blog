@@ -2,6 +2,7 @@
 title: 'Data Architecture: The Complete Guide for the AI Era'
 description: 'What data architecture really is, the six layers of a modern platform, how we got from warehouses to open lakehouses, the patterns that matter in 2026 — and a practical framework for choosing yours.'
 pubDate: 2026-09-25
+updatedDate: 2026-11-07
 tags: [data-architecture, lakehouse, data-mesh, streaming, ai-ready-data]
 series: data-architecture
 seriesOrder: 1
@@ -10,6 +11,7 @@ ogImage: /og/data-architecture-complete-guide.png
 ---
 
 import Callout from '../../components/mdx/Callout.astro';
+import FAQ from '../../components/mdx/FAQ.astro';
 import ReferenceArchitecture from '../../components/diagrams/ReferenceArchitecture.astro';
 import Evolution from '../../components/diagrams/Evolution.astro';
 import LakehouseAnatomy from '../../components/diagrams/LakehouseAnatomy.astro';
@@ -418,6 +420,31 @@ Follow via [RSS](/rss.xml) or check the [series roadmap](/series/data-architectu
 - The table-format debate has largely converged on interoperability; **the catalog is now the strategic control point**.
 - **Right-size latency**, choose an **ownership model that matches your organization**, and treat important datasets as **products**.
 - AI raises the bar: **machine-readable semantics, governed unstructured data and governed agent access** are now architectural requirements.
+
+## Frequently asked questions
+
+<FAQ items={[
+  {
+    "q": "What is data architecture?",
+    "a": "Data architecture is the blueprint for how an organization's data is captured, stored, processed, governed and served to the people and systems that use it. It covers the technology choices, the data models, the flows between systems and the rules for ownership, quality and security, and it should be driven by business needs rather than by tools."
+  },
+  {
+    "q": "What are the layers of a modern data platform?",
+    "a": "Six layers: <strong>sources</strong> (apps, SaaS, events, documents), <strong>ingestion</strong> (batch, CDC, streaming), <strong>storage</strong> (object storage with open table formats and a catalog), <strong>processing</strong> (SQL, Spark and streaming transformations), <strong>serving</strong> (warehouses, semantic layers, feature and vector stores) and <strong>consumption</strong> (BI, apps, ML and AI agents). Governance, orchestration and observability run across all of them."
+  },
+  {
+    "q": "What is the difference between data architecture and data engineering?",
+    "a": "Data architecture decides <em>what</em> the platform should look like and <em>why</em>: the patterns, standards, models and trade-offs. Data engineering <em>builds and operates</em> it: the pipelines, transformations, tests and infrastructure. Architects set the blueprint and guardrails; engineers turn it into working systems, and good teams iterate on both together."
+  },
+  {
+    "q": "What makes a data architecture AI-ready?",
+    "a": "Trustworthy, well-described data that machines can find and use safely: governed open tables, a catalog with lineage and clear ownership, a semantic layer that defines business metrics, support for unstructured data and vector search, fresh data where the use case needs it, and access controls that also cover non-human identities such as AI agents."
+  },
+  {
+    "q": "How do I choose the right data architecture?",
+    "a": "Start from your workloads, team skills and constraints rather than from vendor features. For most organizations in 2026 the default is an open lakehouse pattern (object storage, Iceberg or Delta tables, a shared catalog) with a medallion-style refinement flow, batch by default and streaming only where it pays off. Validate the choice with a small proof of concept on your own data."
+  }
+]} />
 
 ## References and further reading
 

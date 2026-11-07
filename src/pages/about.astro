@@ -9,6 +9,7 @@ import { SITE } from '../config';
       <p class="eyebrow">About</p>
       <h1>Hi, I'm {SITE.author}.</h1>
       <p class="lead">{SITE.authorBio}</p>
+      <ul class="creds">{SITE.credentials.map((c) => <li>{c}</li>)}</ul>
       {SITE.social.youtube && (
         <p>
           I also run the YouTube channel <a href={SITE.social.youtube}><strong>{SITE.brand}</strong></a>, where many of these
@@ -38,6 +39,8 @@ import { SITE } from '../config';
 
 <style>
   .about { margin: 64px auto 0; }
+  .creds { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 1.4em; }
+  .creds li { margin: 0; padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; font-size: 14px; font-weight: 600; background: var(--bg-elev); }
   .eyebrow { color: var(--accent); font-weight: 650; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; margin: 0; }
   h1 { font-size: clamp(36px, 5vw, 52px); margin: 8px 0 0; }
   .lead { font-size: 21px; color: var(--text-soft); }

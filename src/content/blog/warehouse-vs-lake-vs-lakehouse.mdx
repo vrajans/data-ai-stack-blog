@@ -2,6 +2,7 @@
 title: 'Warehouse vs Lake vs Lakehouse: A Decision Guide for 2026'
 description: 'Warehouse, lake or lakehouse? How each really works, why the lines blurred in 2026, and a decision tree, scorecard and scenarios to choose yours.'
 pubDate: 2026-10-02
+updatedDate: 2026-11-07
 tags: [data-architecture, lakehouse, data-warehouse, data-lake, apache-iceberg]
 series: data-architecture
 seriesOrder: 2
@@ -9,6 +10,7 @@ ogImage: /og/warehouse-vs-lake-vs-lakehouse.png
 ---
 
 import Callout from '../../components/mdx/Callout.astro';
+import FAQ from '../../components/mdx/FAQ.astro';
 import ThreeArchitectures from '../../components/diagrams/ThreeArchitectures.astro';
 import Convergence from '../../components/diagrams/Convergence.astro';
 import DecisionTree from '../../components/diagrams/DecisionTree.astro';
@@ -255,6 +257,31 @@ Before you sign anything, make sure you can answer:
 - **Warehouse-first** is still right for small, SQL-centric teams; **lakehouse** is the default for mixed BI/ML/AI workloads at scale; a raw **lake** belongs only in the landing zone.
 - Cost is driven by **compute and copies**, not storage — and by engineering time.
 - Lock-in has moved to the **catalog**. Choose one that speaks open standards.
+
+## Frequently asked questions
+
+<FAQ items={[
+  {
+    "q": "What is the difference between a data warehouse, a data lake and a lakehouse?",
+    "a": "A <strong>data warehouse</strong> stores structured, modeled data in a managed SQL engine built for fast, governed BI. A <strong>data lake</strong> stores any data cheaply as files in object storage, but on its own lacks transactions, schema enforcement and fine-grained governance. A <strong>lakehouse</strong> keeps data in open files in object storage and adds a table format (Apache Iceberg or Delta Lake) plus a catalog, so you get warehouse-style reliability and governance on lake storage, readable by many engines."
+  },
+  {
+    "q": "Is a lakehouse just a data lake with Iceberg or Delta tables?",
+    "a": "Mostly, but the table format alone isn't enough. A working lakehouse also needs a <strong>catalog</strong> (for table discovery, access control and safe concurrent commits), table maintenance such as compaction and snapshot expiry, and a modeling layer on top. Without those, you have a lake with nicer files."
+  },
+  {
+    "q": "Do I still need a data warehouse in 2026?",
+    "a": "Not necessarily as a separate system. The major warehouses (Snowflake, BigQuery, Redshift, Fabric) now read and write open Iceberg or Delta tables, and lakehouse engines serve BI well. Many teams keep a warehouse engine for high-concurrency SQL and BI but store their important data in open tables, so the warehouse becomes an <em>engine choice</em> rather than a separate copy of the data."
+  },
+  {
+    "q": "Which is cheapest: warehouse, lake or lakehouse?",
+    "a": "Storage is cheapest in a lake or lakehouse because it's plain object storage. Total cost depends mainly on compute and people: a managed warehouse often costs more per query but less in engineering time, while a lakehouse costs less to store and avoids lock-in but needs more platform skills. Model both with your real workloads before deciding."
+  },
+  {
+    "q": "Can I start with a warehouse and move to a lakehouse later?",
+    "a": "Yes, and it's a common, low-risk path. Start with a managed warehouse, keep transformations in portable SQL (for example dbt), and when scale, AI workloads or multi-engine needs appear, move the largest or most shared tables to Iceberg or Delta tables in your own storage. Most warehouses can query those tables directly, so the migration can be gradual."
+  }
+]} />
 
 ## Up next
 

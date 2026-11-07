@@ -10,7 +10,9 @@ export const SITE = {
     'Long-form, research-backed guides on data architecture, data engineering, governance, analytics, machine learning and generative AI — from ingestion to agents.',
   author: 'Varatharajan',
   authorBio:
-    'Data & AI practitioner writing deep-dive guides on how modern data platforms and AI systems are designed, built and run.',
+    'Data & AI practitioner with 17 years of experience designing, building and running data platforms. I write deep-dive guides on how modern data and AI systems really work.',
+  // Short credentials shown on the homepage and About page.
+  credentials: ['17 years building data platforms', 'Microsoft Certified: Fabric Analytics Engineer (DP-600)'],
   // Your YouTube brand, shown in the author box, header and footer
   brand: 'Data & AI with Varath',
   locale: 'en-US',

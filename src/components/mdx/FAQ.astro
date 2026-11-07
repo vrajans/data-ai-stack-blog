@@ -1,0 +1,30 @@
+---
+// Frequently asked questions: readable Q&A on the page + FAQPage structured data for search and AI answers.
+// Questions render as h3 inside the component, so they don't bloat the "On this page" table of contents.
+interface Item { q: string; a: string }
+interface Props { items: Item[] }
+const { items } = Astro.props;
+const strip = (s: string) => s.replace(/<[^>]+>/g, '');
+const ld = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: items.map((i) => ({ '@type': 'Question', name: i.q, acceptedAnswer: { '@type': 'Answer', text: strip(i.a) } })),
+};
+---
+
+<div class="faq">
+  {items.map((i) => (
+    <div class="faq-item">
+      <h3>{i.q}</h3>
+      <p set:html={i.a} />
+    </div>
+  ))}
+</div>
+<script type="application/ld+json" set:html={JSON.stringify(ld)} />
+
+<style>
+  .faq { display: grid; gap: 14px; margin: 1.4em 0 2em; }
+  .faq-item { border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; background: var(--bg-elev); }
+  .faq-item h3 { margin: 0 0 6px !important; padding: 0 !important; font-size: 17.5px; line-height: 1.4; }
+  .faq-item p { margin: 0; color: var(--text-soft); font-size: 16px; line-height: 1.65; }
+</style>

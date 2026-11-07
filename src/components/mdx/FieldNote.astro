@@ -1,0 +1,29 @@
+---
+// "From the field": a short first-hand story from the author's own projects.
+import { SITE } from '../../config';
+interface Props { title: string }
+const { title } = Astro.props;
+---
+
+<aside class="field" aria-label={`From the field: ${title}`}>
+  <div class="head">
+    <span class="avatar" aria-hidden="true">{SITE.author[0]}</span>
+    <div>
+      <p class="k">From the field</p>
+      <p class="t">{title}</p>
+    </div>
+  </div>
+  <div class="body"><slot /></div>
+</aside>
+
+<style>
+  .field { margin: 2em 0; padding: 20px 22px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--accent-2) 35%, var(--border));
+    background: color-mix(in srgb, var(--accent-2) 6%, var(--bg-elev)); }
+  .head { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+  .avatar { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; color: #fff; font: 700 15px var(--font-display);
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); flex: none; }
+  .k { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-2); }
+  .t { margin: 0; font-weight: 700; font-size: 16.5px; }
+  .body :global(p) { margin: .6em 0 0; }
+  .body :global(p:first-child) { margin-top: 0; }
+</style>
