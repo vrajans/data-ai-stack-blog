@@ -1,0 +1,28 @@
+---
+import Figure from '../mdx/Figure.astro';
+const steps = [
+  ['Person', 'asks a question', 'box'],
+  ['Agent', 'own identity + on behalf of', 'box-b'],
+  ['Gateway', 'MCP / API · scopes · limits', 'box-w'],
+  ['Policy check', 'catalog rules · row & column', 'box-a'],
+  ['Data', 'tables · retrieval index', 'box'],
+];
+const W = 168, G = 22, X0 = 16;
+---
+
+<Figure label="Governed agent access: a person asks an agent; the agent has its own identity and acts on behalf of the person; requests go through a gateway (MCP or API) that checks scopes and rate limits; the catalog's row and column policies are applied using the person's entitlements; only then is data returned from tables or the retrieval index. Every step writes to one audit trail." caption="Figure 3 — Agents get their own identity, act with the requesting person's permissions, and pass through the same catalog policies as every other consumer — with one audit trail.">
+  <svg viewBox="0 0 960 220" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="aa-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow-a"></path></marker></defs>
+    {steps.map((s, i) => (
+      <g>
+        <rect x={X0 + i * (W + G)} y="20" width={W} height="70" rx="12" class={s[2]}></rect>
+        <text x={X0 + i * (W + G) + W / 2} y="50" text-anchor="middle" class="t" style="font-size:14px">{s[0]}</text>
+        <text x={X0 + i * (W + G) + W / 2} y="70" text-anchor="middle" class="s">{s[1]}</text>
+        {i < steps.length - 1 && <line x1={X0 + i * (W + G) + W + 2} y1="55" x2={X0 + (i + 1) * (W + G) - 3} y2="55" class="lna" marker-end="url(#aa-arr)"></line>}
+      </g>
+    ))}
+    <rect x="16" y="112" width="928" height="40" rx="10" class="box"></rect>
+    <text x="480" y="137" text-anchor="middle" class="t" style="font-size:13px">One audit trail · who asked · which agent · which tools · which rows and documents were returned</text>
+    <text x="480" y="182" text-anchor="middle" class="s">Writes (sending email, updating records) need narrower scopes and, for anything irreversible, a human approval step.</text>
+  </svg>
+</Figure>

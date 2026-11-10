@@ -12,7 +12,7 @@ export const SITE = {
   authorBio:
     'Data & AI practitioner with 17 years of experience designing, building and running data platforms. I write deep-dive guides on how modern data and AI systems really work.',
   // Short credentials shown on the homepage and About page.
-  credentials: ['17 years building data platforms', 'Microsoft Certified: Fabric Analytics Engineer (DP-600)'],
+  credentials: ['17 years building data platforms', 'Hands-on across AWS, Azure, Google Cloud, Databricks & Snowflake'],
   // Your YouTube brand, shown in the author box, header and footer
   brand: 'Data & AI with Varath',
   locale: 'en-US',

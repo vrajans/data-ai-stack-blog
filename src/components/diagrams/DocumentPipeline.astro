@@ -1,0 +1,40 @@
+---
+import Figure from '../mdx/Figure.astro';
+const steps = [
+  ['Ingest', 'files · APIs · CDC'],
+  ['Parse', 'text · tables · OCR'],
+  ['Chunk', 'by section · overlap'],
+  ['Enrich', 'metadata · ACLs · PII'],
+  ['Embed', 'model + version'],
+  ['Index', 'vector + keyword'],
+];
+const W = 140, G = 16, X0 = 16;
+---
+
+<Figure label="Unstructured data pipeline: ingest, parse, chunk, enrich with metadata, access control lists and PII tags, embed with a recorded model version, and index for vector and keyword search. Raw files stay in object storage, chunks and metadata live in open tables with lineage back to the source, and embeddings live in a vector index or Lance table; changing the embedding model triggers a re-embed." caption="Figure 2 — Treat documents like any other data pipeline: every chunk keeps its source, permissions and embedding-model version, so you can trace, filter and rebuild.">
+  <svg viewBox="0 0 960 300" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="dp2-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow-a"></path></marker></defs>
+    <text x="16" y="22" class="h">PIPELINE</text>
+    {steps.map((s, i) => (
+      <g>
+        <rect x={X0 + i * (W + G)} y="34" width={W} height="58" rx="10" class={i === 3 ? 'box-a' : 'box'}></rect>
+        <text x={X0 + i * (W + G) + W / 2} y="59" text-anchor="middle" class={i === 3 ? 't ta' : 't'} style="font-size:13px">{s[0]}</text>
+        <text x={X0 + i * (W + G) + W / 2} y="77" text-anchor="middle" class="s">{s[1]}</text>
+        {i < steps.length - 1 && <line x1={X0 + i * (W + G) + W + 1} y1="63" x2={X0 + (i + 1) * (W + G) - 3} y2="63" class="lna" marker-end="url(#dp2-arr)"></line>}
+      </g>
+    ))}
+    <text x="16" y="128" class="h">WHERE EACH PIECE LIVES</text>
+    <rect x="16" y="140" width="296" height="70" rx="12" class="box"></rect>
+    <text x="164" y="168" text-anchor="middle" class="t" style="font-size:13px">Object storage</text>
+    <text x="164" y="188" text-anchor="middle" class="s">raw files, unchanged (the source of truth)</text>
+    <rect x="328" y="140" width="304" height="70" rx="12" class="box-a"></rect>
+    <text x="480" y="168" text-anchor="middle" class="t ta" style="font-size:13px">Open tables (Iceberg / Delta)</text>
+    <text x="480" y="188" text-anchor="middle" class="s">chunks · metadata · ACLs · lineage to source</text>
+    <rect x="648" y="140" width="296" height="70" rx="12" class="box-b"></rect>
+    <text x="796" y="168" text-anchor="middle" class="t tb" style="font-size:13px">Vector index or Lance table</text>
+    <text x="796" y="188" text-anchor="middle" class="s">embeddings · keyword index · filters</text>
+    <rect x="16" y="228" width="928" height="56" rx="12" class="box-w"></rect>
+    <text x="480" y="252" text-anchor="middle" class="t" style="font-size:13px">Store embedding_model and embedding_version on every row</text>
+    <text x="480" y="271" text-anchor="middle" class="s">new model or new chunking rules → re-embed from the chunk table, compare quality, then switch the index</text>
+  </svg>
+</Figure>

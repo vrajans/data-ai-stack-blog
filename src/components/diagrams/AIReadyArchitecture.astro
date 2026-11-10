@@ -1,0 +1,47 @@
+---
+import Figure from '../mdx/Figure.astro';
+const apps = [['BI copilots', 'text-to-SQL · metrics'], ['Knowledge assistants', 'RAG over documents'], ['ML models', 'training · inference'], ['Agents', 'read and act via tools']];
+const ctx = [['Semantic layer', 'metrics · definitions'], ['Retrieval index', 'vector + keyword'], ['Features', 'online · offline'], ['Knowledge graph', 'optional · entities']];
+const W = 172, G = 12, X0 = 186;
+---
+
+<Figure label="AI-ready data architecture: AI applications (BI copilots, knowledge assistants, ML models and agents) at the top reach data through a governed access layer (APIs, SQL and MCP tools with identity, policy and audit). Below it, a context layer (semantic layer, retrieval index, features, optional knowledge graph) is built on the governed lakehouse. An unstructured data pipeline feeds documents into the lakehouse and retrieval index, and an evaluation and observability loop runs alongside everything." caption="Figure 1 — An AI-ready architecture is the governed lakehouse from Parts 2–6 plus four additions: an unstructured pipeline, a context layer, a governed access layer for machines, and an evaluation loop.">
+  <svg viewBox="0 0 960 430" xmlns="http://www.w3.org/2000/svg">
+    <text x={X0} y="22" class="h">AI APPLICATIONS</text>
+    {apps.map((a, i) => (
+      <g>
+        <rect x={X0 + i * (W + G)} y="32" width={W} height="54" rx="10" class="box-b"></rect>
+        <text x={X0 + i * (W + G) + W / 2} y="55" text-anchor="middle" class="t tb" style="font-size:13px">{a[0]}</text>
+        <text x={X0 + i * (W + G) + W / 2} y="73" text-anchor="middle" class="s">{a[1]}</text>
+      </g>
+    ))}
+    <rect x={X0} y="100" width="724" height="46" rx="10" class="box-w"></rect>
+    <text x={X0 + 362} y="120" text-anchor="middle" class="t" style="font-size:13px">Governed access layer · APIs · SQL · MCP tools</text>
+    <text x={X0 + 362} y="137" text-anchor="middle" class="s">agent identity · on-behalf-of user · scopes · rate limits · audit</text>
+
+    <text x={X0} y="172" class="h">CONTEXT LAYER</text>
+    {ctx.map((a, i) => (
+      <g>
+        <rect x={X0 + i * (W + G)} y="182" width={W} height="54" rx="10" class="box-a"></rect>
+        <text x={X0 + i * (W + G) + W / 2} y="205" text-anchor="middle" class="t ta" style="font-size:13px">{a[0]}</text>
+        <text x={X0 + i * (W + G) + W / 2} y="223" text-anchor="middle" class="s">{a[1]}</text>
+      </g>
+    ))}
+
+    <text x={X0} y="262" class="h">GOVERNED LAKEHOUSE (PARTS 2–6)</text>
+    <rect x={X0} y="272" width="724" height="70" rx="12" class="box"></rect>
+    <text x={X0 + 362} y="300" text-anchor="middle" class="t" style="font-size:13.5px">Open tables (Iceberg / Delta) · catalog · medallion models</text>
+    <text x={X0 + 362} y="321" text-anchor="middle" class="s">contracts · quality checks · lineage · classification tags · row and column policies</text>
+
+    <rect x="16" y="32" width="156" height="310" rx="12" class="box-a" style="fill:var(--bg-elev)"></rect>
+    <text x="94" y="58" text-anchor="middle" class="t ta" style="font-size:13px">Unstructured</text>
+    <text x="94" y="76" text-anchor="middle" class="t ta" style="font-size:13px">pipeline</text>
+    {['PDFs · email', 'tickets · chats', 'images · audio', '↓', 'parse · chunk', 'enrich · embed', '↓', 'chunks → tables', 'vectors → index'].map((t, i) => (
+      <text x="94" y={108 + i * 24} text-anchor="middle" class="s">{t}</text>
+    ))}
+
+    <rect x="16" y="358" width="894" height="56" rx="12" class="box-b"></rect>
+    <text x="463" y="382" text-anchor="middle" class="t tb" style="font-size:13.5px">Evaluation &amp; observability loop</text>
+    <text x="463" y="401" text-anchor="middle" class="s">golden questions · retrieval and answer quality · traces · cost per answer · drift when data or models change</text>
+  </svg>
+</Figure>

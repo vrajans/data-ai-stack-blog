@@ -1,0 +1,260 @@
+---
+title: 'Designing AI-Ready Data Architecture: From Lakehouse to Agents'
+description: 'What AI-ready data really means: unstructured pipelines, vector search, semantic context for agents, governance for AI agents, evaluation — plus runnable SQL.'
+pubDate: 2026-11-07
+tags: [data-architecture, ai-ready-data, generative-ai, data-governance]
+series: data-architecture
+seriesOrder: 9
+ogImage: /og/designing-ai-ready-data-architecture.png
+---
+
+import Callout from '../../components/mdx/Callout.astro';
+import FAQ from '../../components/mdx/FAQ.astro';
+import AIReadyArchitecture from '../../components/diagrams/AIReadyArchitecture.astro';
+import DocumentPipeline from '../../components/diagrams/DocumentPipeline.astro';
+import AgentAccessFlow from '../../components/diagrams/AgentAccessFlow.astro';
+
+Most AI projects that stall don't stall on the model. They stall on the data: the assistant cites last year's policy, the text-to-SQL bot invents a definition of "active customer", the agent can read a spreadsheet it should never have seen, and nobody can explain why answers got worse after an upgrade.
+
+This is Part 9 of the [Data Architecture series](/series/data-architecture). Parts 2–8 built a governed, open data platform. This part shows what to add so that **machines** — copilots, retrieval-augmented assistants, ML models and agents — can use that platform safely and well.
+
+<Callout type="key" title="The short answer">
+**AI-ready data architecture is not a separate AI stack.** It's your governed lakehouse plus four additions: (1) a **pipeline for unstructured data** that keeps source, permissions and model versions on every chunk; (2) a **context layer** — semantic definitions, retrieval indexes and features — so AI uses the same meaning your reports do; (3) **governed access for non-human identities**, where agents act with the requesting person's permissions through the same catalog policies; and (4) an **evaluation loop** that measures retrieval and answer quality every time data or models change.
+</Callout>
+
+## What "AI-ready" actually means
+
+A useful definition: data is AI-ready when a machine consumer can **find it, understand it, trust it, be permitted to use it, and get it fresh enough** for the task. Each of those maps to something concrete:
+
+| Property | What it takes | Covered in |
+|---|---|---|
+| **Findable** | A catalog with descriptions, owners and search | [Part 4](/blog/lakehouse-catalogs-metadata-control-plane) |
+| **Understood** | Semantic definitions of metrics and entities; documented limitations | [Part 5](/blog/data-modeling-modern-stack), this part |
+| **Trustworthy** | Contracts, quality checks, lineage, a single current version of each fact | [Part 7](/blog/data-mesh-data-fabric-in-practice) |
+| **Permitted** | Classification tags and policies that also apply to agents | This part |
+| **Fresh enough** | Batch or streaming, chosen per use case | [Part 6](/blog/batch-streaming-real-time-architectures) |
+
+Notice that most of the work was done in earlier parts. That's the point: organizations with a governed platform get to useful AI much faster than those who start by buying a vector database.
+
+<AIReadyArchitecture />
+
+## Four AI workloads, four data needs
+
+"AI" covers very different workloads. Design for the ones you actually have:
+
+| Workload | Example | Most important data capability |
+|---|---|---|
+| **BI copilots and text-to-SQL** | "What was net revenue in EMEA last quarter?" | A **semantic layer** with governed metric definitions |
+| **Knowledge assistants (RAG)** | "What's our refund policy for enterprise customers?" | An **unstructured pipeline** and **permission-aware retrieval** |
+| **Predictive ML** | Churn, fraud, demand forecasts | **Features** with point-in-time correctness, offline and online |
+| **Agents that act** | "Open a ticket and email the customer" | **Tools with narrow scopes**, identity, approval steps and audit |
+
+A copilot that writes SQL against raw tables will confidently compute the wrong number; one that queries a semantic layer can only use definitions you've approved. A knowledge assistant over a shared drive will leak documents; one over a governed chunk table can't. The architecture decides most of the outcome before any prompt is written.
+
+## The unstructured data pipeline
+
+Documents, tickets, emails, call transcripts and images are where much of an organization's knowledge lives — and they were mostly outside the data platform. The fix is to treat them as data products with the same discipline as tables:
+
+<DocumentPipeline />
+
+The design decisions that matter:
+
+- **Keep raw files unchanged** in object storage. Everything downstream must be rebuildable from them.
+- **Chunk by structure, not by character count alone.** Split on headings, sections and table boundaries, with a small overlap. Store each chunk with its document ID, section path and position.
+- **Carry permissions with the chunk.** Copy the source's access control (or a classification derived from it) onto every chunk at ingestion time. Retrieval can only respect permissions it knows about.
+- **Tag sensitive content** — personal data, secrets, financial details — during enrichment, using the same classification tags your catalog applies to columns.
+- **Record the embedding model and version on every row.** When you switch models or chunking rules, you re-embed from the chunk table, compare quality side by side, and then switch the index — instead of rebuilding blindly.
+- **Track validity.** Policies, prices and procedures get replaced. A `valid_to` date (or "superseded by") on each document prevents the classic failure of an assistant quoting the old version.
+
+Chunks and metadata belong in **open tables** (Iceberg or Delta) like any other dataset, so they get lineage, quality checks and time travel. For heavy multimodal and vector workloads, the open **Lance** format is emerging as a complement to Iceberg: it's designed for fast random access and vector indexes, and Apache Polaris can catalog Lance tables alongside Iceberg tables in the same namespace (as of early 2026, with some governance features such as credential vending still being added).
+
+## Where to put the vectors
+
+Embeddings need an index that supports similarity search, ideally combined with keyword search and metadata filters. In 2026 you rarely need a separate system to start:
+
+| Option | Examples | Good fit |
+|---|---|---|
+| **Your data platform's built-in search** | Databricks Vector Search, Snowflake Cortex Search, BigQuery vector search, Fabric/Azure AI Search | Most teams: governance and lineage stay in one place |
+| **Postgres with pgvector** | Lakebase, Snowflake Postgres, AlloyDB, Aurora, any Postgres | Apps that already use Postgres; moderate scale |
+| **Object-storage-native vectors** | Amazon S3 Vectors, Lance tables | Very large, cost-sensitive collections; batch retrieval |
+| **Dedicated vector database** | Purpose-built engines | Very high query rates, strict latency, advanced indexing needs |
+
+Whatever you pick, three practices matter more than the engine:
+
+1. **Hybrid search.** Combine vector similarity with keyword (BM25) search — keywords catch product codes, names and exact terms that embeddings blur.
+2. **Filter before you rank.** Apply permission, freshness and scope filters *inside* the retrieval query, not after, so restricted content never reaches the model.
+3. **Rerank and cite.** Retrieve more candidates than you need, rerank them, and return source links with every answer so people can verify.
+
+## The context layer: give AI the same meaning your reports use
+
+Retrieval brings documents; **context** brings meaning. Three pieces work together:
+
+- **Semantic layer.** Governed definitions of metrics, dimensions and joins — dbt MetricFlow, Databricks metric views, Snowflake semantic views, LookML, Power BI semantic models. The Open Semantic Interchange (OSI) specification, finalized in January 2026, gives these definitions a vendor-neutral format. Text-to-SQL and BI copilots should query *through* this layer.
+- **Data contracts with AI context.** The Open Data Contract Standard v3.2 (September 2026) added a `context` block where producers can write instructions and constraints for AI consumers — for example, "revenue excludes refunds; never sum across currencies".
+- **Features.** For ML, a feature store (or feature tables in the lakehouse) gives point-in-time-correct training data and low-latency online values, fed by the streaming paths from Part 6.
+
+Optional but increasingly common: an **ontology or knowledge graph** of business entities (customer, product, contract) and their relationships, which helps agents navigate across domains. Start with the semantic layer; add a graph when cross-domain questions demand it.
+
+<Callout type="tip" title="A quick test of your context layer">
+Ask three people and your AI assistant to compute the same business metric. If the humans disagree with each other, the problem isn't the AI — it's a missing definition. Fix it in the semantic layer, and every consumer improves at once.
+</Callout>
+
+## Governed access for agents
+
+Agents change the risk profile: they act continuously, at machine speed, and can be manipulated by text they read. The principles that hold up:
+
+<AgentAccessFlow />
+
+- **Every agent gets its own identity** — not a shared service account and not a human's password. You should be able to answer "what did *this* agent read and do yesterday?"
+- **Act on behalf of the person.** When someone asks a question, the agent should see only what *that person* may see. Propagate the user's identity to the data platform, and intersect it with the agent's own (narrower) permissions.
+- **Expose tools, not raw access.** Give agents purpose-built tools — "get order status", "search approved policies", "query the revenue metric" — rather than unrestricted SQL over the warehouse.
+- **Use a standard protocol with a gateway.** The **Model Context Protocol (MCP)** has become the common way to connect agents to tools and data. Its 2026-07-28 specification made the protocol stateless and easier to run behind load balancers and gateways, standardized remote access on Streamable HTTP, and introduced an extension for enterprise-managed authorization through an identity provider. Put MCP servers behind a gateway that enforces authentication, scopes, rate limits and logging.
+- **Separate read from write.** Reading is the default; actions that change things get narrower scopes, and irreversible ones (payments, deletions, external emails) get a human approval step.
+- **Treat retrieved content as untrusted.** Documents and web pages can contain instructions aimed at the model ("ignore previous rules and…"). Keep tool permissions tight so a manipulated agent can't do much damage, and never let retrieved text grant new permissions.
+
+### Try it: permission-aware retrieval in plain SQL
+
+Here's the core of governed retrieval — permission filter, freshness filter, relevance threshold and citations — in a single query you can run in [DuckDB](https://duckdb.org/) (version 1.1 or later, no extensions needed). The embeddings are tiny toy vectors so it runs anywhere; in practice they come from an embedding model.
+
+```sql
+-- governed_retrieval.sql  →  run with:  duckdb < governed_retrieval.sql
+
+-- 1) Document chunks with the metadata a retriever must respect
+CREATE TABLE doc_chunks (
+  chunk_id       INTEGER PRIMARY KEY,
+  doc_id         VARCHAR,
+  source_uri     VARCHAR,
+  classification VARCHAR,   -- public | internal | restricted
+  valid_to       DATE,      -- NULL = still current
+  content        VARCHAR,
+  embedding      FLOAT[4]   -- toy vectors; real models use hundreds to thousands of dimensions
+);
+
+INSERT INTO doc_chunks VALUES
+  (1, 'refund-policy-v1',  's3://kb/policies/refund-v1.pdf',   'public',     DATE '2025-06-30',
+      'Refunds are accepted within 14 days of purchase.',                    [0.92, 0.10, 0.05, 0.20]),
+  (2, 'refund-policy-v2',  's3://kb/policies/refund-v2.pdf',   'public',     NULL,
+      'Refunds are accepted within 30 days of purchase.',                    [0.90, 0.12, 0.02, 0.22]),
+  (3, 'refund-exceptions', 's3://kb/finance/exceptions.xlsx',  'restricted', NULL,
+      'Enterprise customers may receive refunds up to 90 days by approval.', [0.88, 0.15, 0.04, 0.25]),
+  (4, 'support-playbook',  's3://kb/support/playbook.md',      'internal',   NULL,
+      'Escalate refund disputes over $500 to a team lead.',                  [0.70, 0.30, 0.10, 0.30]),
+  (5, 'shipping-faq',      's3://kb/public/shipping.md',       'public',     NULL,
+      'Standard shipping takes 3-5 business days.',                          [0.10, 0.90, 0.20, 0.05]);
+
+-- 2) Entitlements: what each principal (person or agent) may read
+CREATE TABLE entitlements (principal VARCHAR, classification VARCHAR);
+INSERT INTO entitlements VALUES
+  ('agent:support-bot', 'public'), ('agent:support-bot', 'internal'),
+  ('user:finance-lead', 'public'), ('user:finance-lead', 'internal'), ('user:finance-lead', 'restricted');
+
+-- 3) The question, already embedded: "How long do customers have to request a refund?"
+SET VARIABLE q = [0.91, 0.11, 0.03, 0.21]::FLOAT[4];
+
+-- 4) Retrieval = permission filter + freshness filter + relevance threshold, with citations
+SELECT c.doc_id,
+       c.source_uri,
+       c.content,
+       round(1 - array_cosine_distance(c.embedding, getvariable('q')), 4) AS similarity
+FROM doc_chunks AS c
+JOIN entitlements AS e
+  ON e.classification = c.classification
+ AND e.principal = 'agent:support-bot'
+WHERE (c.valid_to IS NULL OR c.valid_to >= current_date)
+  AND array_cosine_distance(c.embedding, getvariable('q')) < 0.3
+ORDER BY array_cosine_distance(c.embedding, getvariable('q'))
+LIMIT 3;
+```
+
+The support bot gets two results: the **current** refund policy (30 days) and the internal escalation playbook. A naive similarity search over the same table would have returned the expired 14-day policy and the restricted enterprise exception as its second and third hits — exactly the two ways assistants get organizations into trouble. Change the principal to `user:finance-lead` and the restricted exception appears, because that person is entitled to it.
+
+At scale, the same pattern runs in your vector index or platform search service: the filters become metadata filters on the index, and the entitlements come from your catalog and identity provider instead of a table. (In DuckDB itself, the `vss` extension adds an HNSW index for larger collections.)
+
+## Evaluation and observability: the loop most teams skip
+
+Traditional data quality asks "is the data correct?". AI adds "is the *answer* correct, grounded and safe?" — and that changes every time data, prompts, retrieval settings or models change. Build the loop early:
+
+- **A golden set.** Start with 50–200 real questions with known good answers and the documents that should support them. Add every bad answer users report.
+- **Measure retrieval separately from generation.** Did the right chunks come back (recall at k)? Then: is the answer faithful to those chunks, complete, and properly cited? Most "the model is wrong" issues are retrieval issues.
+- **Run evaluations on every change** — new documents, re-chunking, a new embedding model, a new LLM version, a prompt change — and block releases that regress.
+- **Trace in production.** Log each request's user, agent, tools called, retrieved document IDs, latency and cost. These traces are both your debugging tool and your audit trail.
+- **Watch data-driven drift.** Stale or conflicting documents, duplicate chunks and broken permission tags show up as quality drops long before anyone files a ticket.
+- **Track cost per answer.** Embedding, retrieval and model calls add up; Part 10 covers FinOps in depth.
+
+## A maturity path
+
+| Level | What's in place | Typical capability |
+|---|---|---|
+| **0 — Ad hoc** | Files in shared drives, direct warehouse access, no AI-specific governance | Demos that don't survive contact with real data |
+| **1 — Governed foundation** | Catalog, classification, contracts on key datasets, semantic definitions for top metrics | Reliable BI copilots on approved metrics |
+| **2 — Governed retrieval** | Unstructured pipeline with ACLs and versions, hybrid search, golden set and evaluations | Trustworthy knowledge assistants with citations |
+| **3 — Governed agents** | Agent identities, on-behalf-of access, tool gateway, approvals, full tracing | Agents that read and act within policy |
+
+Most organizations should aim for Level 1 everywhere and Level 2 for two or three high-value domains before giving agents write access to anything.
+
+## A 90-day plan
+
+1. **Weeks 1–3: pick one high-value use case** with a clear owner and measurable outcome — for example, a support knowledge assistant or a finance metrics copilot. Write 50 golden questions with the people who'll use it.
+2. **Weeks 2–6: make its data AI-ready.** Classify the sources, define the metrics in the semantic layer, build the chunk table with permissions and validity, and pick the simplest vector option your platform already offers.
+3. **Weeks 5–9: build governed access.** Give the assistant its own identity, propagate user identity, expose a small set of tools, and log every request.
+4. **Weeks 8–12: evaluate and harden.** Run the golden set on every change, fix retrieval first, add hybrid search and reranking if needed, and review costs. Only then widen the audience — and reuse the same foundation for the next use case.
+
+## Anti-patterns to avoid
+
+- **A separate "AI data lake"** with copied data and no lineage or permissions.
+- **Embedding everything at once** before you know which questions matter.
+- **Post-filtering permissions** after retrieval — the model has already seen the content.
+- **Text-to-SQL on raw tables** instead of a semantic layer.
+- **Shared service accounts for agents**, so nobody can tell who did what.
+- **No version on embeddings**, so model upgrades become irreversible.
+- **"Vibe" evaluation** — judging quality from a handful of demos instead of a golden set.
+
+## Key takeaways
+
+- AI-ready architecture = **your governed lakehouse + an unstructured pipeline + a context layer + governed agent access + an evaluation loop**.
+- Treat documents as data: keep **source, permissions, validity and embedding version** on every chunk.
+- Start with **vector search your platform already has**; hybrid search, pre-filtering and citations matter more than the engine.
+- Give AI the **same definitions** as your reports through the semantic layer and contract context.
+- Agents need **their own identity**, act **on behalf of** people, use **narrow tools** through a gateway, and leave **one audit trail**.
+- **Evaluate continuously** — retrieval first, then answers — whenever data, prompts or models change.
+
+## Frequently asked questions
+
+<FAQ items={[
+  {
+    "q": "What is an AI-ready data architecture?",
+    "a": "A data platform whose data machines can find, understand, trust, be permitted to use, and get fresh enough for the task. In practice it's a governed lakehouse plus an unstructured data pipeline, a context layer (semantic definitions, retrieval indexes, features), governed access for AI agents and an evaluation loop."
+  },
+  {
+    "q": "Do I need a vector database for RAG?",
+    "a": "Usually not at first. Most data platforms now include vector or hybrid search (for example Databricks Vector Search, Snowflake Cortex Search or BigQuery vector search), and Postgres with pgvector works well at moderate scale. Consider a dedicated vector database only when query volume, latency or indexing needs outgrow those options."
+  },
+  {
+    "q": "How do I stop an AI assistant from showing data a user shouldn't see?",
+    "a": "Carry permissions or classification tags on every document chunk at ingestion, propagate the requesting user's identity to retrieval, and apply those filters inside the retrieval query — before ranking — so restricted content never reaches the model. Give the agent its own identity with narrower permissions and log every request."
+  },
+  {
+    "q": "What is a semantic layer and why does AI need one?",
+    "a": "A semantic layer stores governed definitions of business metrics, dimensions and joins. When copilots and agents query through it instead of raw tables, they use the same definition of revenue or active customer as your reports, which prevents confident but wrong answers."
+  },
+  {
+    "q": "How should AI agents access enterprise data?",
+    "a": "Through purpose-built tools exposed via a standard protocol such as the Model Context Protocol (MCP), behind a gateway that enforces authentication, scopes, rate limits and logging. Agents should have their own identity, act on behalf of the requesting person, and need human approval for irreversible actions."
+  },
+  {
+    "q": "How do you evaluate a RAG system?",
+    "a": "Build a golden set of real questions with known answers and supporting documents, then measure retrieval (did the right chunks come back?) separately from generation (is the answer faithful, complete and cited?). Re-run it on every change to data, chunking, embedding model, prompts or LLM version."
+  }
+]} />
+
+## Up next
+
+**Part 10 — Cost, Performance & FinOps for Data Platforms.** The final part of the series: where data-platform money actually goes, how to measure cost per query, pipeline and AI answer, and the tuning and governance habits that keep bills predictable. Follow along on the [series page](/series/data-architecture), via [RSS](/rss.xml) or by email.
+
+## References and further reading
+
+- Model Context Protocol — [The 2026-07-28 specification](https://blog.modelcontextprotocol.io/posts/2026-07-28/) and Agentic AI Foundation — [What's changing and how to migrate](https://aaif.io/blog/mcp-2026-07-28-whats-changing-and-how-to-migrate).
+- Apache Polaris — [Polaris and Lance: bringing AI-native storage to the open multimodal lakehouse](https://polaris.apache.org/blog/2026/01/06/apache-polaris-and-lance-bringing-ai-native-storage-to-the-open-multimodal-lakehouse/) (January 2026).
+- DuckDB — [vector similarity search (vss) extension](https://duckdb.org/docs/current/core_extensions/vss) documentation.
+- Bitol — [ODCS v3.2.0 and ODPS v1.1.0 released](https://www.entropy-data.com/news/2026-09-08-odcs-3-2-odps-1-1) (September 2026).
+- Earlier in this series: [catalogs](/blog/lakehouse-catalogs-metadata-control-plane), [semantic layers and modeling](/blog/data-modeling-modern-stack), [streaming](/blog/batch-streaming-real-time-architectures), [data products and contracts](/blog/data-mesh-data-fabric-in-practice) and [platform reference architectures](/blog/reference-architectures-aws-azure-gcp-databricks-snowflake).
