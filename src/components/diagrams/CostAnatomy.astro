@@ -1,0 +1,32 @@
+---
+import Figure from '../mdx/Figure.astro';
+const parts = [
+  { h: 'Compute', s: 'usually the largest line', cls: 'box-a', drivers: ['queries & dashboards', 'pipelines & jobs', 'idle warehouses'], levers: ['right-size · auto-suspend', 'pruning · incremental', 'workload isolation'] },
+  { h: 'Storage', s: 'cheap per GB, adds up', cls: 'box', drivers: ['raw & duplicate copies', 'time travel · snapshots', 'small files'], levers: ['lifecycle tiers', 'retention policies', 'compaction'] },
+  { h: 'Data movement', s: 'the hidden line', cls: 'box-w', drivers: ['cross-region reads', 'egress to other clouds', 'NAT · private links'], levers: ['compute near data', 'share, don’t copy', 'one region per domain'] },
+  { h: 'AI & models', s: 'fastest-growing', cls: 'box-b', drivers: ['tokens per answer', 'embeddings · re-embeds', 'vector & GPU serving'], levers: ['caching · routing', 'smaller models', 'budgets per agent'] },
+  { h: 'Tools & people', s: 'often forgotten', cls: 'box', drivers: ['overlapping licenses', 'unused seats', 'manual operations'], levers: ['consolidate tools', 'review seats', 'automate toil'] },
+];
+const W = 176, G = 12, X0 = 16;
+---
+
+<Figure label="Anatomy of a data platform bill: five cost areas — compute, storage, data movement, AI and models, tools and people — each with its typical cost drivers and the levers that reduce them." caption="Figure 1 — Where data platform money goes, what drives each line, and the levers that move it. Compute is usually the biggest line; AI is the fastest-growing.">
+  <svg viewBox="0 0 960 330" xmlns="http://www.w3.org/2000/svg">
+    {parts.map((p, i) => {
+      const x = X0 + i * (W + G);
+      return (
+        <g>
+          <rect x={x} y="10" width={W} height="60" rx="10" class={p.cls}></rect>
+          <text x={x + W / 2} y="36" text-anchor="middle" class="t" style="font-size:14px">{p.h}</text>
+          <text x={x + W / 2} y="55" text-anchor="middle" class="s">{p.s}</text>
+          <text x={x + 10} y="96" class="h">DRIVERS</text>
+          {p.drivers.map((d, j) => <text x={x + 10} y={118 + j * 22} class="s" style="fill:var(--text)">· {d}</text>)}
+          <text x={x + 10} y="204" class="h ta">LEVERS</text>
+          {p.levers.map((d, j) => <text x={x + 10} y={226 + j * 22} class="s" style="fill:var(--text)">→ {d}</text>)}
+        </g>
+      );
+    })}
+    <line x1="16" y1="180" x2="944" y2="180" class="ln dash"></line>
+    <text x="480" y="312" text-anchor="middle" class="s">Visibility first: you can only optimize what is tagged, owned and measured per unit of value.</text>
+  </svg>
+</Figure>

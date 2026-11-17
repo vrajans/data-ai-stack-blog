@@ -1,0 +1,29 @@
+---
+import Figure from '../mdx/Figure.astro';
+const steps = [
+  ['Provider bills', 'clouds · platforms · AI APIs', 'box'],
+  ['FOCUS dataset', 'one schema for every bill', 'box-b'],
+  ['Allocation', 'tags · owners · shared-cost rules', 'box-a'],
+  ['Unit costs', 'cost ÷ queries, runs, answers', 'box-a'],
+  ['Owners act', 'budgets · alerts · fixes', 'box-w'],
+];
+const W = 170, G = 19.5, X0 = 16;
+---
+
+<Figure label="From bill to unit cost: provider bills are normalized into a FOCUS dataset, allocated to teams and products using tags, ownership and shared-cost rules, joined with usage to compute unit costs such as cost per dashboard query, pipeline run or AI answer, and then shown to the owning teams, who act with budgets, alerts and fixes. The loop repeats every week." caption="Figure 2 — The FinOps loop for a data platform: normalize every bill, allocate it to owners, divide by the work delivered, and put the number in front of the people who can change it.">
+  <svg viewBox="0 0 960 250" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="uc-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow-a"></path></marker></defs>
+    {steps.map((s, i) => (
+      <g>
+        <rect x={X0 + i * (W + G)} y="20" width={W} height="76" rx="12" class={s[2]}></rect>
+        <text x={X0 + i * (W + G) + W / 2} y="52" text-anchor="middle" class="t" style="font-size:14px">{s[0]}</text>
+        <text x={X0 + i * (W + G) + W / 2} y="74" text-anchor="middle" class="s" style="font-size:11px">{s[1]}</text>
+        {i < steps.length - 1 && <line x1={X0 + i * (W + G) + W + 2} y1="58" x2={X0 + (i + 1) * (W + G) - 3} y2="58" class="lna" marker-end="url(#uc-arr)"></line>}
+      </g>
+    ))}
+    <rect x="300" y="118" width="644" height="44" rx="10" class="box"></rect>
+    <text x="622" y="145" text-anchor="middle" class="t" style="font-size:13px">+ usage from your logs: queries · pipeline runs · rows · AI answers</text>
+    <path d="M944 64 C956 64 956 200 920 200 L111 200 L111 102" class="ln dash" marker-end="url(#uc-arr)" fill="none"></path>
+    <text x="480" y="228" text-anchor="middle" class="s">repeat weekly · track the trend of each unit cost, not just the total bill</text>
+  </svg>
+</Figure>

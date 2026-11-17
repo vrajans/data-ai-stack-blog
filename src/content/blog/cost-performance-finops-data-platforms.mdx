@@ -1,0 +1,285 @@
+---
+title: 'Cost, Performance & FinOps for Data Platforms: A Practical Guide'
+description: 'Where data platform money goes, how to measure cost per query, pipeline and AI answer, and the architecture levers that cut spend — with runnable SQL.'
+pubDate: 2026-11-17
+tags: [data-architecture, finops, cost-optimization, performance]
+series: data-architecture
+seriesOrder: 10
+ogImage: /og/cost-performance-finops-data-platforms.png
+---
+
+import Callout from '../../components/mdx/Callout.astro';
+import FAQ from '../../components/mdx/FAQ.astro';
+import CostAnatomy from '../../components/diagrams/CostAnatomy.astro';
+import UnitCostFlow from '../../components/diagrams/UnitCostFlow.astro';
+
+Every data platform eventually gets The Email: the bill doubled, nobody knows why, and finance wants a plan by Friday. Teams respond with a cleanup sprint — pause some warehouses, delete some tables — and six months later the bill is back where it was.
+
+Cost doesn't stay down through one-off cleanups. It stays down when it's treated as a **property of the architecture**: visible per team and product, measured against the value delivered, and controlled by defaults and guardrails rather than heroics.
+
+This is Part 10, the final part of the [Data Architecture series](/series/data-architecture). It pulls the cost threads from every earlier part — storage layout, catalogs, modeling, streaming, platforms and AI — into one practical playbook.
+
+<Callout type="key" title="The short answer">
+**Measure cost per unit of value, not just the total.** Normalize every bill (the FOCUS standard helps), allocate it to owning teams with enforced tags, and divide by the work delivered — dashboard queries, pipeline runs, AI answers. Then pull the levers that matter most: **avoid scanning data you don't need, process incrementally, right-size and auto-suspend compute, isolate workloads, keep compute next to the data, and give every team and agent a budget**. Performance and cost usually improve together: the cheapest query is the one that reads the least data.
+</Callout>
+
+## Where the money goes
+
+A data platform bill has five parts. Their proportions vary, but the pattern is consistent: compute dominates, storage is cheap but grows quietly, data movement surprises, AI is the fastest-growing line, and tools and people are often left out of the picture entirely.
+
+<CostAnatomy />
+
+Two things follow from this. First, **most savings come from compute**, and most compute waste comes from reading more data than necessary, recomputing things that didn't change, and paying for capacity nobody is using. Second, **storage savings are real but smaller** — worth doing with lifecycle rules and retention policies, but rarely where the big wins are.
+
+## Know what your pricing model rewards
+
+Each platform's pricing model rewards different behavior. Optimizing without knowing which one you're on is guesswork:
+
+| Pricing model | Where you'll see it | What drives the bill | What to tune first |
+|---|---|---|---|
+| **Bytes scanned** | BigQuery on-demand ($6.25 per TiB, US list price), Athena | Data read per query | Partitioning, clustering, selecting fewer columns, maximum-bytes limits |
+| **Slots or capacity units** | BigQuery editions ($0.04–$0.10 per slot-hour, US), Microsoft Fabric F-SKUs | Reserved or autoscaled capacity over time | Workload isolation, autoscaling limits, scheduling heavy jobs off-peak |
+| **Credits per running second** | Snowflake warehouses (per-second billing, 60-second minimum per resume) | Warehouse size × time running | Auto-suspend, right-sizing, separate warehouses per workload |
+| **DBUs plus cloud infrastructure** | Databricks (classic compute bills cloud VMs separately) | Cluster size × runtime, plus VMs and storage | Serverless vs classic per workload, autoscaling, job clusters instead of all-purpose |
+| **Per service, pay-as-you-go** | AWS native (Glue, EMR, Redshift Serverless, S3) | Many small meters | Tagging and per-service dashboards, then the largest meters |
+| **Tokens and requests** | LLM and embedding APIs, vector search | Tokens per answer × answers | Caching, model routing, shorter context, batch jobs |
+
+Capacity models need extra care: on Microsoft Fabric, overage billing for capacity is enabled by default on new capacities and charged at a premium to pay-as-you-go rates, so one runaway notebook can raise a bill nobody planned for.
+
+## FinOps for data: Inform, Optimize, Operate
+
+The FinOps Foundation's framework describes three phases that map well onto data platforms:
+
+- **Inform** — make cost visible: who spends what, on which product, and what it achieves.
+- **Optimize** — act on the biggest opportunities: technical levers and pricing commitments.
+- **Operate** — make it routine: budgets, guardrails, reviews and ownership.
+
+The practice has grown well beyond cloud infrastructure. The FinOps Foundation's *State of FinOps 2026* survey (1,192 respondents, February 2026) found that **98% of FinOps teams now manage AI spend**, up from 31% two years earlier — and named FinOps for AI and "shifting left" (cost awareness during design, not after the bill) as top priorities.
+
+### FOCUS: one format for every bill
+
+The **FinOps Open Cost and Usage Specification (FOCUS)** defines a common schema for billing data — columns such as `BilledCost`, `EffectiveCost`, `ListCost`, `ServiceName`, `ChargePeriodStart` and `Tags` — so you can analyze AWS, Azure, Google Cloud, Databricks, Snowflake and SaaS bills with the same queries. FOCUS 1.4 was ratified in June 2026. AWS publishes a generally available FOCUS export; Azure, Google Cloud, Databricks and Snowflake offer FOCUS exports in preview. FOCUS 1.5, scheduled for ratification in December 2026, adds AI model and token columns and requester attribution — useful for tracking cost per agent.
+
+Load these exports into your lakehouse as a **cost data product** with an owner, like any other dataset. Then the usual tools — SQL, dashboards, alerts — work on cost too.
+
+## Unit economics: the number that changes behavior
+
+A total bill tells you *that* spending grew. A unit cost tells you *whether that's a problem*. If the bill grew 40% while dashboard queries grew 80%, cost per query fell — that's success, not a crisis.
+
+<UnitCostFlow />
+
+Good unit metrics for data platforms:
+
+- **Cost per dashboard query** or per active BI user — for analytics.
+- **Cost per pipeline run** and per million rows processed — for data engineering.
+- **Cost per data product per month** — for domain ownership (Part 7).
+- **Cost per AI answer** or per agent task — for AI workloads (Part 9).
+- **Storage cost per TB of useful data** — to spot duplication and retention bloat.
+
+The data for the denominator comes from your own logs: query history, orchestrator run logs, application metrics. Join it to allocated cost by product tag, and publish the trend weekly to the owning teams.
+
+### Try it: showback, unit cost and anomalies in SQL
+
+This runs in [DuckDB](https://duckdb.org/) (version 1.1 or later) with generated sample data in FOCUS-style columns. Replace the two `CREATE TABLE` statements with your real FOCUS export and usage logs, and the queries stay the same.
+
+```sql
+-- focus_costs.sql  →  run with:  duckdb < focus_costs.sql   (DuckDB 1.1+)
+
+-- 1) Two weeks of daily costs in FOCUS-style columns (a real export has many more)
+CREATE TABLE focus_costs AS
+SELECT g.d::DATE                                   AS ChargePeriodStart,
+       r.ServiceName,
+       r.ServiceCategory,
+       r.ResourceId,
+       r.Tags,
+       round(r.daily * CASE WHEN r.ResourceId = 'wh-adhoc' AND g.d >= DATE '2026-11-09'
+                            THEN 2.6 ELSE 1 END, 2) AS EffectiveCost
+FROM generate_series(DATE '2026-11-02', DATE '2026-11-15', INTERVAL 1 DAY) AS g(d)
+CROSS JOIN (VALUES
+  ('Snowflake',  'Analytics',               'wh-bi',         '{"team":"finance","product":"revenue-dashboards"}', 42.00),
+  ('Snowflake',  'Analytics',               'wh-adhoc',      '{"team":"data-science"}',                           18.00),
+  ('Databricks', 'Compute',                 'job-orders',    '{"team":"commerce","product":"orders-pipeline"}',   25.00),
+  ('Amazon S3',  'Storage',                 'lake-bucket',   '{}',                                                 9.50),
+  ('Model API',  'AI and Machine Learning', 'support-llm',   '{"team":"support","product":"support-assistant"}', 12.00)
+) AS r(ServiceName, ServiceCategory, ResourceId, Tags, daily);
+
+-- 2) Usage from your own logs: how many units each product delivered per day
+CREATE TABLE product_usage AS
+SELECT g.d::DATE AS day, u.product, u.unit, u.qty
+FROM generate_series(DATE '2026-11-02', DATE '2026-11-15', INTERVAL 1 DAY) AS g(d)
+CROSS JOIN (VALUES
+  ('revenue-dashboards', 'dashboard query', 1400),
+  ('orders-pipeline',    'pipeline run',      24),
+  ('support-assistant',  'AI answer',        900)
+) AS u(product, unit, qty);
+
+-- 3) Showback: last 7 days of cost by team, including spend nobody owns
+SELECT coalesce(json_extract_string(Tags, '$.team'), '(untagged)') AS team,
+       round(sum(EffectiveCost), 2)                                AS cost_7d
+FROM focus_costs
+WHERE ChargePeriodStart >= DATE '2026-11-09'
+GROUP BY ALL
+ORDER BY cost_7d DESC;
+
+-- 4) Unit economics: what one dashboard query, pipeline run or AI answer costs
+SELECT u.product,
+       u.unit,
+       round(sum(c.EffectiveCost), 2)                    AS cost_7d,
+       sum(u.qty)                                        AS units_7d,
+       round(sum(c.EffectiveCost) / sum(u.qty), 4)       AS cost_per_unit
+FROM product_usage AS u
+JOIN focus_costs AS c
+  ON json_extract_string(c.Tags, '$.product') = u.product
+ AND c.ChargePeriodStart = u.day
+WHERE u.day >= DATE '2026-11-09'
+GROUP BY ALL
+ORDER BY cost_per_unit DESC;
+
+-- 5) Anomalies: resources whose cost grew more than 30% week over week
+WITH weekly AS (
+  SELECT ResourceId,
+         sum(EffectiveCost) FILTER (WHERE ChargePeriodStart <  DATE '2026-11-09') AS prev_week,
+         sum(EffectiveCost) FILTER (WHERE ChargePeriodStart >= DATE '2026-11-09') AS this_week
+  FROM focus_costs
+  GROUP BY ResourceId
+)
+SELECT ResourceId,
+       round(prev_week, 2) AS prev_week,
+       round(this_week, 2) AS this_week,
+       round(100 * (this_week - prev_week) / prev_week, 1) AS change_pct
+FROM weekly
+WHERE this_week > prev_week * 1.3
+ORDER BY change_pct DESC;
+```
+
+What the three answers tell you on this sample data:
+
+- **Showback:** data science is the biggest spender this week ($327.60), and $66.50 of storage has no owner at all — the first thing to fix is the tag.
+- **Unit cost:** a revenue-dashboard query costs about 3 cents, a support-assistant answer about 1.3 cents, and an orders pipeline run about $1.04. Those are the numbers to track week over week.
+- **Anomaly:** the ad-hoc warehouse grew **160%** week over week ($126 → $327.60) — typical of a new heavy notebook, a missing auto-suspend or a query without filters.
+
+## The levers that actually move cost and performance
+
+Most of these were covered in depth earlier in the series. Here they are as one checklist, in rough order of impact:
+
+| Lever | Typical waste | Fix | More in |
+|---|---|---|---|
+| **Read less data** | `SELECT *`, missing filters, full scans of large tables | Partitioning and clustering, column pruning, filters on partition columns, bytes-scanned limits | [Part 3](/blog/open-table-formats-deep-dive) |
+| **Keep tables healthy** | Thousands of small files, stale snapshots, bloated metadata | Compaction, snapshot expiry, orphan-file cleanup — or managed maintenance | [Part 4](/blog/lakehouse-catalogs-metadata-control-plane) |
+| **Process incrementally** | Full refreshes of tables where 1% changed | Incremental models, merge on keys, change data feeds | [Part 5](/blog/data-modeling-modern-stack) |
+| **Right-size latency** | Streaming jobs running 24/7 for data read once a day | Batch or micro-batch unless real-time pays off | [Part 6](/blog/batch-streaming-real-time-architectures) |
+| **Right-size compute** | Oversized warehouses and clusters, no auto-suspend | Start small, scale on evidence, short auto-suspend, job clusters | [Part 8](/blog/reference-architectures-aws-azure-gcp-databricks-snowflake) |
+| **Isolate workloads** | One shared warehouse where ad-hoc exploration slows dashboards | Separate compute per workload class, each with its own budget | This part |
+| **Precompute what's reused** | Fifty dashboards recomputing the same aggregation | Aggregate tables, materialized views, result caching | [Part 5](/blog/data-modeling-modern-stack) |
+| **Keep compute near data** | Cross-region and cross-cloud reads, copies between platforms | One home region per domain, sharing instead of copying | [Part 8](/blog/reference-architectures-aws-azure-gcp-databricks-snowflake) |
+| **Tier and expire storage** | Raw data kept forever on hot storage, long time-travel windows | Lifecycle tiers, retention by data class, shorter time travel on non-critical tables | [Part 2](/blog/warehouse-vs-lake-vs-lakehouse) |
+| **Control dev and test** | Full production copies in every environment, clusters left running overnight | Zero-copy clones or samples, schedules and auto-termination | This part |
+
+<Callout type="tip" title="Performance and cost usually move together">
+On almost every modern engine, a query that reads less data is both faster and cheaper. Fixing the top 20 queries or jobs by cost each month — usually a small fraction of all workloads — typically delivers most of the available savings, and makes dashboards faster at the same time.
+</Callout>
+
+## AI costs: a new line with its own levers
+
+AI workloads add costs that don't behave like queries: tokens per answer, embedding runs over whole document collections, re-embedding when models change, vector index storage and serving, and GPU time. The levers:
+
+- **Measure cost per answer or per task**, not just the monthly API bill — with tags per product and, as FOCUS 1.5 lands, per model and per agent.
+- **Cache** repeated questions and retrieval results.
+- **Route by difficulty:** a small, cheap model handles routine requests; a larger model only when needed.
+- **Trim context:** better retrieval (Part 9) means fewer, more relevant chunks — cheaper *and* more accurate.
+- **Batch** offline work such as embeddings and summarization, where lower-priority pricing is often available.
+- **Give every agent a budget** and hard limits on calls per task, so a looping agent stops before the bill grows.
+
+## Guardrails: make the cheap path the default
+
+People don't read cost policies; they use defaults. Build the policy into the platform:
+
+- **Tags at creation time.** Refuse to create warehouses, clusters, buckets or jobs without `team`, `product` and `environment` tags.
+- **Budgets and alerts per team** — Snowflake budgets and resource monitors, Databricks budget policies and system billing tables, BigQuery quotas and maximum bytes billed, cloud budgets — with alerts to the owning team, not only to finance.
+- **Safe defaults:** short auto-suspend, query timeouts, small default sizes, auto-termination for development clusters.
+- **Approval for big commitments:** reserved capacity and committed-use discounts only after usage is stable and measured.
+- **Showback first, chargeback later.** Start by showing teams their costs; move to charging them only when the allocation is trusted.
+- **A monthly cost review** of the top spenders and the biggest unit-cost changes, with owners present.
+
+## Committed-use discounts: last, not first
+
+Every platform offers discounts for commitment — reserved capacity, committed-use discounts, prepaid credits. They're worth having, but **commit after optimizing**, not before. Committing to today's wasteful baseline locks in the waste. Optimize, watch usage stabilize for a month or two, then commit to the steady floor and keep the peaks on demand.
+
+## A 30/60/90-day plan
+
+1. **Days 1–30 — Inform.** Turn on FOCUS (or native) cost exports for every platform, load them into a cost table, enforce tags on new resources, and publish a weekly showback by team. Find the untagged spend.
+2. **Days 31–60 — Optimize.** Fix the top 20 queries and jobs, set auto-suspend and right-size compute, separate the noisiest workload, add lifecycle and retention rules, and define three unit-cost metrics with their owners.
+3. **Days 61–90 — Operate.** Budgets and alerts for every team and AI product, guardrails as code, a monthly review, and — once usage is stable — the first commitment purchase.
+
+## Anti-patterns to avoid
+
+- **Cleanup sprints instead of defaults** — savings that disappear within a quarter.
+- **Total-bill targets with no unit metrics**, which punish growth and reward doing less.
+- **Finance-only dashboards** that engineers never see.
+- **Committing to capacity before optimizing.**
+- **One giant shared warehouse** where nobody owns the cost.
+- **Ignoring data movement and AI lines** because they're "small" — they're the fastest-growing.
+
+## Key takeaways
+
+- Cost is an **architecture property**: design for visibility, ownership and efficient defaults from day one.
+- **Compute dominates**; most waste is reading unnecessary data, recomputing unchanged data and paying for idle capacity.
+- Know **what your pricing model rewards** — bytes scanned, slots, running seconds, DBUs or tokens — and tune for that.
+- Normalize bills with **FOCUS**, allocate with **enforced tags**, and track **unit costs** per query, pipeline run, data product and AI answer.
+- **Performance and cost improve together** when queries read less data.
+- **Guardrails and budgets beat cleanup sprints**; commitments come *after* optimization.
+
+## Frequently asked questions
+
+<FAQ items={[
+  {
+    "q": "What is FinOps for data platforms?",
+    "a": "FinOps for data platforms is the practice of making data and AI spending visible, owned and tied to business value. Teams normalize bills, allocate costs to teams and data products with tags, track unit costs such as cost per query, pipeline run or AI answer, and use budgets and guardrails so efficient behavior is the default."
+  },
+  {
+    "q": "What is FOCUS in FinOps?",
+    "a": "FOCUS, the FinOps Open Cost and Usage Specification, is an open standard schema for billing data. It lets you analyze costs from different clouds, data platforms and SaaS vendors with the same columns — such as BilledCost, EffectiveCost, ServiceName and Tags. Version 1.4 was ratified in June 2026, and major providers including AWS, Azure, Google Cloud, Databricks and Snowflake offer FOCUS exports."
+  },
+  {
+    "q": "What usually drives a data platform's costs?",
+    "a": "Compute is usually the largest share: queries and dashboards, pipelines, and idle or oversized warehouses and clusters. Storage is cheaper per gigabyte but grows through copies, snapshots and long retention. Data movement between regions or clouds and AI token usage are smaller lines that often grow fastest."
+  },
+  {
+    "q": "How can I reduce Snowflake, Databricks or BigQuery costs?",
+    "a": "Start with visibility: tag workloads and find the top queries and jobs by cost. Then make queries read less data with partitioning, clustering and column pruning; process incrementally instead of full refreshes; right-size compute and use short auto-suspend or auto-termination; separate workloads; and set budgets and limits per team. Buy commitments only after usage has stabilized."
+  },
+  {
+    "q": "What is a unit cost in data engineering?",
+    "a": "A unit cost divides spend by the work delivered — for example cost per dashboard query, per pipeline run, per million rows processed, per data product or per AI answer. Unit costs show whether rising spend reflects growth or waste, and they give each owning team a number it can improve."
+  },
+  {
+    "q": "Should I buy reserved capacity or committed-use discounts?",
+    "a": "Yes, but only after optimizing. Committing to an unoptimized baseline locks in waste. Fix the largest inefficiencies first, observe stable usage for one to two months, then commit to the steady minimum and keep peaks on on-demand pricing."
+  }
+]} />
+
+## The series in one page
+
+That completes the Data Architecture series. If you read it end to end, the blueprint looks like this:
+
+1. **[Start from the layers and principles](/blog/data-architecture-complete-guide)**, not from products.
+2. **[Default to an open lakehouse](/blog/warehouse-vs-lake-vs-lakehouse)** unless a managed warehouse clearly fits better.
+3. **[Use open table formats](/blog/open-table-formats-deep-dive)** and **[treat the catalog as the control plane](/blog/lakehouse-catalogs-metadata-control-plane)**.
+4. **[Model deliberately](/blog/data-modeling-modern-stack)**, with a semantic layer for shared definitions.
+5. **[Choose latency per use case](/blog/batch-streaming-real-time-architectures)** — batch by default, streaming where it pays.
+6. **[Give data owners and contracts](/blog/data-mesh-data-fabric-in-practice)**, with governance as code.
+7. **[Map the blueprint onto your platform](/blog/reference-architectures-aws-azure-gcp-databricks-snowflake)** without losing openness.
+8. **[Make it AI-ready](/blog/designing-ai-ready-data-architecture)** with context, governed access and evaluation.
+9. **Make cost visible and owned**, measured per unit of value.
+
+## What's next on the blog
+
+The next series goes one level down into **data engineering**: ingestion patterns (batch, micro-batch, CDC and events), streaming foundations, and orchestration. Follow along via [RSS](/rss.xml) or subscribe by email below to get each part as it's published.
+
+## References and further reading
+
+- FinOps Foundation — [What is FOCUS?](https://focus.finops.org/what-is-focus/) and [FOCUS 1.5 release scope](https://focus.finops.org/focus-1-5-release-scope/).
+- FinOps Foundation — [State of FinOps 2026 survey announcement](https://www.prnewswire.com/news-releases/state-of-finops-survey-ai-value-and-skills-top-priorities-as-finops-matures-across-technology-value-98-manage-ai-90-saas-64-licensing-48-data-center-302691410.html) (February 2026).
+- Google Cloud — [BigQuery pricing](https://cloud.google.com/bigquery/pricing) and [editions overview](https://docs.cloud.google.com/bigquery/docs/editions-intro).
+- Microsoft — [FabCon Europe 2026 updates](https://www.bitmetric.nl/blog/fabcon-europe-2026-microsoft-fabric-updates/) (Bitmetric), including capacity overage billing.
+- Earlier in this series: [platform reference architectures](/blog/reference-architectures-aws-azure-gcp-databricks-snowflake) for each platform's pricing model and controls.
